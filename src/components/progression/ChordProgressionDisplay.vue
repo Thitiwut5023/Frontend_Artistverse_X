@@ -57,7 +57,7 @@ export default {
 
     <div class="bars-display-section">
       <h3 class="bars-title">
-        Chord Progression in {{ chordBarsDisplay.length }} Bars ({{ beatsPerChord }} beats per chord)
+        Chord Progression in {{ chordBarsDisplay.length }} Bars
       </h3>
       
       <!-- Display bars in pairs (2 bars per row) -->
