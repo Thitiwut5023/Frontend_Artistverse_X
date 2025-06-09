@@ -72,9 +72,6 @@ export default {
           class="tempo-slider"
         />
         <p class="tempo-text">Tempo: {{ tempo }} BPM</p>
-        <p class="tempo-note" v-if="isFastTempo">
-          <i>Fast tempo - audio will be cut short</i>
-        </p>
       </div>
     </div>
 

@@ -480,6 +480,11 @@ export default {
         }
       }
     },
+    
+    goToMelodyCreator() {
+      // นำทางไปยังหน้า Melody creator
+      this.$router.push('/melody');
+    }
   },
   
   created() {
@@ -516,6 +521,13 @@ export default {
 
 <template>
   <div class="body">
+    <header class="app-header">
+      <div class="tab-selector">
+        <button class="tab-button active">CHORD PROGRESSION</button>
+        <button class="tab-button" @click="goToMelodyCreator">MELODY CREATOR</button>
+      </div>
+    </header>
+    
     <div class="result">
       <!-- Chord Table Component -->
       <ChordTable
@@ -577,10 +589,46 @@ export default {
 <style scoped>
 .body {
   text-align: center;
-  align-items: center;
-  justify-content: center;
   min-height: 100vh;
   background-color: #1b1b1b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-header {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+}
+
+.tab-selector {
+  display: inline-flex;
+  background-color: #333;
+  border-radius: 30px;
+  padding: 5px;
+  margin: 30px 0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.tab-button {
+  padding: 12px 30px;
+  background: transparent;
+  color: #fff;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: bold;
+  letter-spacing: 1px;
+  font-size: 14px;
+}
+
+.tab-button.active {
+  background-color: #fff;
+  color: #000;
 }
 
 .result {

@@ -5,9 +5,19 @@ export default class AudioService {
   constructor() {
     this.audioCache = new Map();
     this.currentPlayingAudio = null;
+    this.previousAudio = null;
     this.currentTimeout = null;
-    this.fadeDuration = 50; // มิลลิวินาที สำหรับ fade in/out เพื่อลดเสียงคลิก
+    this.fadeOutTimeout = null;
+    this.fadeDuration = 40;
     this.isPreloading = false;
+    this.fadeIntervals = []; 
+    this.volumeEnvelope = {
+      attack: 0.01,
+      decay: 0.05,
+      sustain: 0.8,
+      release: 0.3
+    };
+    this.volumeEnvelopeInterval = null;
   }
   
   /**
@@ -48,7 +58,7 @@ export default class AudioService {
       return newAudio;
     }
     
-    const audio = new Audio(`src/assets/sounds/${chord}.mp3`);
+    const audio = new Audio(`src/assets/singlechord/${chord}.mp3`);
     audio.preload = "auto";
     audio.volume = 0.8;
     
@@ -67,7 +77,7 @@ export default class AudioService {
   }
   
   /**
-   * Stops all currently playing audio with a smooth fade out
+   * หยุดเสียงที่กำลังเล่นและลบการตั้งเวลาทั้งหมด
    */
   stopAll() {
     // Clear any existing timeout
@@ -76,10 +86,32 @@ export default class AudioService {
       this.currentTimeout = null;
     }
     
-    // Stop any currently playing audio with fade out
+    if (this.fadeOutTimeout) {
+      clearTimeout(this.fadeOutTimeout);
+      this.fadeOutTimeout = null;
+    }
+    
+    // ล้าง intervals ทั้งหมด
+    this.fadeIntervals.forEach(intervalId => clearInterval(intervalId));
+    this.fadeIntervals = [];
+
+    if (this.volumeEnvelopeInterval) {
+      clearInterval(this.volumeEnvelopeInterval);
+      this.volumeEnvelopeInterval = null;
+    }
+    
+    // หยุดเสียงที่กำลังเล่นอยู่
     if (this.currentPlayingAudio) {
-      this.fadeOutAndStop(this.currentPlayingAudio);
+      this.currentPlayingAudio.pause();
+      this.currentPlayingAudio.currentTime = 0;
       this.currentPlayingAudio = null;
+    }
+    
+    // หยุดเสียงก่อนหน้า
+    if (this.previousAudio) {
+      this.previousAudio.pause();
+      this.previousAudio.currentTime = 0;
+      this.previousAudio = null;
     }
     
     // Stop all cached audios
@@ -90,44 +122,137 @@ export default class AudioService {
   }
   
   /**
-   * Fade out and stop an audio element
-   * @param {HTMLAudioElement} audio - The audio element to fade out and stop
+   * Fade out และหยุดเสียง
+   * @param {HTMLAudioElement} audio - เสียงที่จะหยุด
+   * @param {number} duration - ระยะเวลาในการ fade (ms)
    */
-  fadeOutAndStop(audio) {
+  fadeOutAndStop(audio, duration = this.fadeDuration) {
     if (!audio) return;
     
-    // ตรวจสอบว่า audio เป็น element ที่สมบูรณ์และมี volume
-    if (!audio.volume) {
-      audio.pause();
-      audio.currentTime = 0;
+    if (!audio || typeof audio.volume === 'undefined') {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
       return;
     }
     
     const originalVolume = audio.volume;
-    const fadeSteps = 10;
-    const fadeInterval = this.fadeDuration / fadeSteps;
-    const volumeStep = originalVolume / fadeSteps;
+    const fadeSteps = 5; 
+    const fadeInterval = duration / fadeSteps;
     
     let currentStep = 0;
+    
+    // หยุด interval เดิมทั้งหมด
+    this.fadeIntervals = this.fadeIntervals.filter(id => {
+      clearInterval(id);
+      return false;
+    });
     
     const fadeOutInterval = setInterval(() => {
       currentStep++;
       
-      if (currentStep >= fadeSteps) {
+      if (currentStep >= fadeSteps || !audio) {
         clearInterval(fadeOutInterval);
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = originalVolume; // คืนค่า volume เดิม
+        
+        const index = this.fadeIntervals.indexOf(fadeOutInterval);
+        if (index !== -1) this.fadeIntervals.splice(index, 1);
+        
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
       } else {
-        audio.volume = Math.max(0, originalVolume - (volumeStep * currentStep));
+        try {
+          // ใช้ exponential fadeout เพื่อความเป็นธรรมชาติ
+          const ratio = Math.pow(1 - (currentStep / fadeSteps), 2);
+          audio.volume = Math.max(0, originalVolume * ratio);
+        } catch (error) {
+          console.error('Error setting audio volume:', error);
+          clearInterval(fadeOutInterval);
+        }
       }
     }, fadeInterval);
+    
+    // เก็บ interval ID
+    this.fadeIntervals.push(fadeOutInterval);
+  }
+
+  /**
+   * ใช้ ADSR envelope กับเสียง
+   * @param {HTMLAudioElement} audio - เสียงที่จะปรับ envelope 
+   * @param {number} durationMs - ความยาวของคอร์ดทั้งหมด (ms)
+   */
+  applyVolumeEnvelope(audio, durationMs) {
+    if (!audio) return;
+    
+    // ล้าง interval เดิม
+    if (this.volumeEnvelopeInterval) {
+      clearInterval(this.volumeEnvelopeInterval);
+      this.volumeEnvelopeInterval = null;
+    }
+    
+    const maxVolume = 0.8;  // ความดังสูงสุด
+    
+    // คำนวณเวลาสำหรับแต่ละช่วง (ms)
+    const attackTime = durationMs * this.volumeEnvelope.attack;
+    const decayTime = durationMs * this.volumeEnvelope.decay;
+    const sustainLevel = this.volumeEnvelope.sustain * maxVolume;
+    const releaseTime = durationMs * this.volumeEnvelope.release;
+    
+    // เวลาที่เริ่มต้นแต่ละช่วง
+    const decayStart = attackTime;
+    const sustainStart = attackTime + decayTime;
+    const releaseStart = durationMs - releaseTime;
+    
+    const updateInterval = Math.min(30, durationMs / 50);  // อัพเดททุก 30ms หรือน้อยกว่าถ้า BPM สูงมาก
+    let startTime = Date.now();
+    
+    audio.volume = 0;  // เริ่มที่ความดัง 0
+    
+    this.volumeEnvelopeInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      
+      if (elapsed >= durationMs) {
+        // สิ้นสุดแล้ว
+        clearInterval(this.volumeEnvelopeInterval);
+        this.volumeEnvelopeInterval = null;
+        return;
+      }
+      
+      try {
+        // ใช้ ADSR envelope
+        if (elapsed < attackTime) {
+          // Attack phase: เพิ่มความดังจาก 0 ถึงค่าสูงสุด
+          const ratio = elapsed / attackTime;
+          audio.volume = maxVolume * ratio;
+        } 
+        else if (elapsed < sustainStart) {
+          // Decay phase: ลดความดังจากค่าสูงสุดเป็น sustain
+          const ratio = (elapsed - decayStart) / decayTime;
+          audio.volume = maxVolume - (ratio * (maxVolume - sustainLevel));
+        } 
+        else if (elapsed < releaseStart) {
+          // Sustain phase: รักษาความดังคงที่
+          audio.volume = sustainLevel;
+        } 
+        else {
+          // Release phase: ลดความดังลงไปถึง 0
+          const ratio = (elapsed - releaseStart) / releaseTime;
+          audio.volume = sustainLevel * (1 - ratio);
+        }
+      } catch (error) {
+        console.error('Error setting volume in envelope:', error);
+        clearInterval(this.volumeEnvelopeInterval);
+        this.volumeEnvelopeInterval = null;
+      }
+    }, updateInterval);
   }
   
   /**
-   * Play a single chord sound with fade in
-   * @param {string} chord - The chord to play
-   * @returns {Promise<void>} - A promise that resolves when the chord starts playing
+   * เล่นเสียงคอร์ดเดี่ยว
+   * @param {string} chord - ชื่อคอร์ด
+   * @returns {Promise<void>} - Promise ที่จะทำงานเสร็จเมื่อเริ่มเล่นเสียง
    */
   async playSingleChord(chord) {
     const audio = await this.preloadAudio(chord);
@@ -142,20 +267,8 @@ export default class AudioService {
     
     const playPromise = audio.play();
     
-    // Fade in
-    let currentStep = 0;
-    const fadeSteps = 8;
-    const fadeInterval = this.fadeDuration / fadeSteps;
-    const volumeStep = 0.8 / fadeSteps; // Target volume is 0.8
-    
-    const fadeInInterval = setInterval(() => {
-      currentStep++;
-      audio.volume = Math.min(0.8, volumeStep * currentStep);
-      
-      if (currentStep >= fadeSteps) {
-        clearInterval(fadeInInterval);
-      }
-    }, fadeInterval);
+    // ใช้ volume envelope แทน fade in ธรรมดา
+    this.applyVolumeEnvelope(audio, 2000); // 2 วินาทีสำหรับการเล่น single chord
     
     return playPromise;
   }
@@ -212,7 +325,7 @@ export default class AudioService {
   }
   
   /**
-   * Plays a sequence of chords at the specified tempo
+   * Plays a sequence of chords at the specified tempo without overlapping sounds
    * @param {Array<string>} chords - Array of chord names to play
    * @param {number} tempo - The tempo in BPM
    * @param {number|Array<number>} beatsPerChord - Number of beats per chord or array of beats for each chord
@@ -223,7 +336,28 @@ export default class AudioService {
   async playChordSequence(chords, tempo, beatsPerChord, onChordChange, onComplete) {
     this.stopAll();
     
-    // Preload all chords before starting playback for smoother experience
+    // ปรับค่า envelope ตาม tempo
+    if (tempo > 150) {
+      // สำหรับ tempo เร็ว: attack เร็วขึ้น, release สั้นลง 
+      this.volumeEnvelope.attack = 0.005;
+      this.volumeEnvelope.decay = 0.02;
+      this.volumeEnvelope.sustain = 0.7;
+      this.volumeEnvelope.release = 0.2;
+    } else if (tempo > 100) {
+      // สำหรับ tempo ปานกลาง
+      this.volumeEnvelope.attack = 0.01;
+      this.volumeEnvelope.decay = 0.05;
+      this.volumeEnvelope.sustain = 0.8;
+      this.volumeEnvelope.release = 0.25;
+    } else {
+      // สำหรับ tempo ช้า: attack นุ่มนวลขึ้น, release ยาวขึ้น
+      this.volumeEnvelope.attack = 0.02;
+      this.volumeEnvelope.decay = 0.08;
+      this.volumeEnvelope.sustain = 0.85;
+      this.volumeEnvelope.release = 0.3;
+    }
+    
+    // Preload all chords
     await this.preloadAllChords(chords);
     
     try {
@@ -233,94 +367,83 @@ export default class AudioService {
       
       const playNextChord = async () => {
         if (sequenceIndex < chords.length && isPlaying) {
-          // Stop previous sound with fade out
-          if (this.currentPlayingAudio) {
-            this.fadeOutAndStop(this.currentPlayingAudio);
-          }
-          
-          // Calculate position indices for visualization
-          const { barIndex, chordIndex } = this.calculatePositionIndices(sequenceIndex, beatsPerChord);
-          
-          // Call the onChordChange callback with calculated indices
-          onChordChange(barIndex, chordIndex);
-          
-          // Play the new sound with fade in
+          // ดึงข้อมูลคอร์ด
           const currentChord = chords[sequenceIndex];
-          const audio = await this.preloadAudio(currentChord);
           
-          this.currentPlayingAudio = audio;
-          audio.currentTime = 0;
-          audio.volume = 0; // Start at 0 for fade in
-          
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.error('Audio play failed:', error);
-            });
-          }
-          
-          // Fade in
-          let currentStep = 0;
-          const fadeSteps = 8;
-          const fadeInterval = this.fadeDuration / fadeSteps;
-          const volumeStep = 0.8 / fadeSteps; // Target volume is 0.8
-          
-          const fadeInInterval = setInterval(() => {
-            currentStep++;
-            if (audio && audio.volume !== undefined) {
-              audio.volume = Math.min(0.8, volumeStep * currentStep);
-            }
-            
-            if (currentStep >= fadeSteps) {
-              clearInterval(fadeInInterval);
-            }
-          }, fadeInterval);
-          
-          // Calculate how long this chord should play
+          // คำนวณระยะเวลาของคอร์ด
           const currentBeats = Array.isArray(beatsPerChord) ? 
             (beatsPerChord[sequenceIndex] || 2) : beatsPerChord;
           const msPerChord = msPerBeat * currentBeats;
           
-          // Set up to stop the sound with fade out before next chord
-          const stopCurrentAudio = () => {
-            if (audio === this.currentPlayingAudio) {
-              this.fadeOutAndStop(audio);
-              this.currentPlayingAudio = null;
+          // คำนวณตำแหน่งสำหรับการแสดงผล
+          const { barIndex, chordIndex } = this.calculatePositionIndices(sequenceIndex, beatsPerChord);
+          
+          // แจ้ง callback เมื่อเปลี่ยนคอร์ด
+          onChordChange(barIndex, chordIndex);
+          
+          // หยุดเสียงก่อนหน้า
+          if (this.currentPlayingAudio) {
+            if (this.previousAudio) {
+              this.previousAudio.pause();
+              this.previousAudio.currentTime = 0;
+              this.previousAudio = null;
             }
-          };
+            
+            this.previousAudio = this.currentPlayingAudio;
+            this.fadeOutAndStop(this.previousAudio, 100);
+          }
           
-          // Calculate when to start fade out - 50ms before next chord
-          const fadeOutTime = Math.max(msPerChord - this.fadeDuration, msPerChord * 0.75);
-          setTimeout(stopCurrentAudio, fadeOutTime);
+          // เตรียมเสียง
+          const audio = await this.preloadAudio(currentChord);
           
+          // ตั้งค่าเสียง
+          this.currentPlayingAudio = audio;
+          audio.currentTime = 0;
+          audio.volume = 0;  // เริ่มที่ความดัง 0
+          
+          // เล่นเสียง
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error('Audio play failed:', error);
+          }
+          
+          // ปรับความดังตาม envelope
+          // ปรับเวลาให้น้อยลงเล็กน้อยเพื่อให้มีช่วงเวลาระหว่างคอร์ด
+          const adjustedDuration = msPerChord * 0.95;
+          this.applyVolumeEnvelope(audio, adjustedDuration);
+          
+          // ไปยังคอร์ดถัดไป
           sequenceIndex++;
           
           if (sequenceIndex < chords.length && isPlaying) {
-            // Calculate delay for next chord based on the current chord's duration
-            const nextChordDelay = msPerChord;
-            
-            this.currentTimeout = setTimeout(playNextChord, nextChordDelay);
+            // ตั้งเวลาเล่นคอร์ดถัดไป
+            this.currentTimeout = setTimeout(playNextChord, msPerChord);
           } else {
-            // Finished playing
+            // เล่นเสร็จแล้ว
             const finalBeats = Array.isArray(beatsPerChord) ? 
               (beatsPerChord[sequenceIndex - 1] || 2) : beatsPerChord;
             const finalMsPerChord = msPerBeat * finalBeats;
             
+            // ตั้งเวลาสำหรับการเล่นเสร็จสิ้น
             this.currentTimeout = setTimeout(() => {
               isPlaying = false;
+              this.stopAll();
+              
+              // เรียก onComplete
               onComplete();
               this.currentTimeout = null;
-              if (this.currentPlayingAudio) {
-                this.currentPlayingAudio = null;
-              }
-            }, Math.min(finalMsPerChord, 3000));
+              this.currentPlayingAudio = null;
+              this.previousAudio = null;
+            }, finalMsPerChord * 0.8);
           }
         }
       };
       
+      // เริ่มเล่นคอร์ดแรก
       playNextChord();
       
-      // Return a function to stop playback
+      // คืนฟังก์ชันสำหรับหยุดเล่น
       return () => {
         isPlaying = false;
         this.stopAll();
