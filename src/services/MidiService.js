@@ -1,5 +1,5 @@
 /**
- * Service for generating MIDI files from chord progressions
+ * Service for generating MIDI files from chord progressions and melodies
  */
 export default class MidiService {
   /**
@@ -364,6 +364,152 @@ export default class MidiService {
     const link = document.createElement('a');
     link.href = url;
     link.download = `chord-progression-${key}-${progression}-${tempo}bpm.mid`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+  }  
+  // Melody MIDI Generation Methods
+  
+  /**
+   * Convert a melody note (pitch + octave) to MIDI note number
+   * @param {string} pitch - The note pitch (C, D, E, F, G, A, B)
+   * @param {number|string} octave - The octave number (2, 3, 4, 5, 6)
+   * @returns {number} - MIDI note number (0-127)
+   */
+  noteToMidiNumber(pitch, octave) {
+    const noteNumbers = {
+      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
+    };
+    
+    const noteNumber = noteNumbers[pitch];
+    if (noteNumber === undefined) {
+      console.warn(`Unknown pitch: ${pitch}, defaulting to C`);
+      return 60; // Default to Middle C
+    }
+    
+    const octaveNum = parseInt(octave);
+    if (octaveNum < 0 || octaveNum > 10) {
+      console.warn(`Invalid octave: ${octave}, defaulting to 4`);
+      return 60; // Default to Middle C
+    }
+      // MIDI note calculation: (octave + 1) * 12 + noteNumber
+    // +1 because MIDI octave -1 = notes 0-11, octave 0 = notes 12-23, etc.
+    return (octaveNum + 1) * 12 + noteNumber;
+  }
+  
+  /**
+   * Generate MIDI file from melody notes
+   * @param {Array<Object>} notes - Array of note objects {pitch, octave}
+   * @param {Object} settings - Settings object {tempo, numberOfBars, noteDuration}
+   * @returns {Uint8Array} - Binary MIDI file data
+   */
+  generateMelodyMidiFile(notes, settings) {
+    const midiData = this.createMelodyMidiData(notes, settings);
+    return this.createMidiFileFromData(midiData);
+  }
+  
+  /**
+   * Create structured MIDI data from melody notes
+   * @param {Array<Object>} notes - Array of note objects {pitch, octave}
+   * @param {Object} settings - Settings object {tempo, numberOfBars, noteDuration}
+   * @returns {Object} - Structured MIDI data
+   */
+  createMelodyMidiData(notes, settings) {
+    const ticksPerQuarter = 480;
+    const ticksPerNote = ticksPerQuarter * settings.noteDuration;
+    const events = [];
+    let currentTick = 0;
+      // Add tempo event
+    const microsecondsPerQuarter = Math.round(60000000 / settings.tempo);
+    events.push({
+      deltaTime: 0,
+      type: 'meta',
+      subtype: 'setTempo',
+      microsecondsPerQuarter: microsecondsPerQuarter
+    });
+    
+    // Add time signature event
+    events.push({
+      deltaTime: 0,
+      type: 'meta',
+      subtype: 'timeSignature',
+      numerator: 4,
+      denominator: 4,
+      metronome: 24,
+      thirtyseconds: 8
+    });    // Determine melody generation strategy
+    const useExactNotes = notes.length < 4; // Simple heuristic: few notes = use exactly
+    
+    let totalNotesToGenerate;
+    if (useExactNotes) {
+      totalNotesToGenerate = notes.length;
+    } else {
+      // Calculate notes needed to fill target bars
+      const notesPerBar = 4 / settings.noteDuration; // 4/4 time signature
+      totalNotesToGenerate = settings.numberOfBars * notesPerBar;
+    }// Generate melody events
+    for (let i = 0; i < totalNotesToGenerate; i++) {
+      const noteIndex = i % notes.length; // Cycle through the melody pattern
+      const note = notes[noteIndex];
+      const midiNoteNumber = this.noteToMidiNumber(note.pitch, note.octave);
+      
+      const noteStartTick = i * ticksPerNote;
+      const noteEndTick = (i + 1) * ticksPerNote;
+      
+      // Note on event
+      events.push({
+        deltaTime: noteStartTick - currentTick,
+        type: 'channel',
+        subtype: 'noteOn',
+        channel: 0,
+        noteNumber: midiNoteNumber,
+        velocity: 80
+      });
+      currentTick = noteStartTick;
+      
+      // Note off event
+      events.push({
+        deltaTime: noteEndTick - currentTick,
+        type: 'channel',
+        subtype: 'noteOff',
+        channel: 0,
+        noteNumber: midiNoteNumber,
+        velocity: 0
+      });
+      currentTick = noteEndTick;
+    }
+    
+    // Add end of track
+    events.push({
+      deltaTime: 0,
+      type: 'meta',
+      subtype: 'endOfTrack'
+    });
+    
+    return {
+      ticksPerQuarter: ticksPerQuarter,
+      events: events
+    };
+  }
+  /**
+   * Download melody MIDI file
+   * @param {Uint8Array} midiFile - Binary MIDI file data
+   * @param {string} instrument - Selected instrument (piano/guitar)
+   * @param {number} tempo - BPM
+   * @param {number} numberOfBars - Number of bars
+   */
+  downloadMelodyMidiFile(midiFile, instrument, tempo, numberOfBars) {
+    const blob = new Blob([midiFile], { type: 'audio/midi' });
+    const url = URL.createObjectURL(blob);
+    
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const filename = `melody-${instrument}-${tempo}bpm-${numberOfBars}bars-${timestamp}.mid`;
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

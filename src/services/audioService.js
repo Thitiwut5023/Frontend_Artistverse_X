@@ -1,5 +1,5 @@
 /**
- * A service for handling audio playback and caching in the progression view
+ * Service for handling audio playback and caching
  */
 export default class AudioService {
   constructor() {
@@ -18,6 +18,9 @@ export default class AudioService {
       release: 0.3
     };
     this.volumeEnvelopeInterval = null;
+    this.globalVolume = 0.8; // Add global volume control
+    this.progressCallback = null; // Add progress tracking
+    this.playbackStartTime = null; // Track playback start time
   }
   
   /**
@@ -30,9 +33,8 @@ export default class AudioService {
     
     this.isPreloading = true;
     const uniqueChords = [...new Set(chords)];
-    
-    try {
-      // ใช้ Promise.allSettled เพื่อให้ preload ต่อไปแม้บางคอร์ดจะไม่สำเร็จ
+      try {
+      // Use Promise.allSettled to continue preloading even if some chords fail
       await Promise.allSettled(
         uniqueChords.map(chord => this.preloadAudio(chord))
       );
@@ -75,9 +77,8 @@ export default class AudioService {
       audio.load();
     });
   }
-  
-  /**
-   * หยุดเสียงที่กำลังเล่นและลบการตั้งเวลาทั้งหมด
+    /**
+   * Stop all playing audio and clear timeouts
    */
   stopAll() {
     // Clear any existing timeout
@@ -89,9 +90,8 @@ export default class AudioService {
     if (this.fadeOutTimeout) {
       clearTimeout(this.fadeOutTimeout);
       this.fadeOutTimeout = null;
-    }
-    
-    // ล้าง intervals ทั้งหมด
+    }    
+    // Clear all intervals
     this.fadeIntervals.forEach(intervalId => clearInterval(intervalId));
     this.fadeIntervals = [];
 
@@ -100,14 +100,14 @@ export default class AudioService {
       this.volumeEnvelopeInterval = null;
     }
     
-    // หยุดเสียงที่กำลังเล่นอยู่
+    // Stop currently playing audio
     if (this.currentPlayingAudio) {
       this.currentPlayingAudio.pause();
       this.currentPlayingAudio.currentTime = 0;
       this.currentPlayingAudio = null;
     }
     
-    // หยุดเสียงก่อนหน้า
+    // Stop previous audio
     if (this.previousAudio) {
       this.previousAudio.pause();
       this.previousAudio.currentTime = 0;
@@ -120,11 +120,10 @@ export default class AudioService {
       audio.currentTime = 0;
     });
   }
-  
-  /**
-   * Fade out และหยุดเสียง
-   * @param {HTMLAudioElement} audio - เสียงที่จะหยุด
-   * @param {number} duration - ระยะเวลาในการ fade (ms)
+    /**
+   * Fade out and stop audio
+   * @param {HTMLAudioElement} audio - Audio element to stop
+   * @param {number} duration - Fade duration in ms
    */
   fadeOutAndStop(audio, duration = this.fadeDuration) {
     if (!audio) return;
@@ -139,11 +138,10 @@ export default class AudioService {
     
     const originalVolume = audio.volume;
     const fadeSteps = 5; 
-    const fadeInterval = duration / fadeSteps;
-    
+    const fadeInterval = duration / fadeSteps;    
     let currentStep = 0;
     
-    // หยุด interval เดิมทั้งหมด
+    // Stop all existing intervals
     this.fadeIntervals = this.fadeIntervals.filter(id => {
       clearInterval(id);
       return false;
@@ -164,7 +162,7 @@ export default class AudioService {
         }
       } else {
         try {
-          // ใช้ exponential fadeout เพื่อความเป็นธรรมชาติ
+          // Use exponential fadeout for natural sound
           const ratio = Math.pow(1 - (currentStep / fadeSteps), 2);
           audio.volume = Math.max(0, originalVolume * ratio);
         } catch (error) {
@@ -174,70 +172,66 @@ export default class AudioService {
       }
     }, fadeInterval);
     
-    // เก็บ interval ID
+    // Store interval ID
     this.fadeIntervals.push(fadeOutInterval);
   }
-
   /**
-   * ใช้ ADSR envelope กับเสียง
-   * @param {HTMLAudioElement} audio - เสียงที่จะปรับ envelope 
-   * @param {number} durationMs - ความยาวของคอร์ดทั้งหมด (ms)
-   */
-  applyVolumeEnvelope(audio, durationMs) {
+   * Apply ADSR envelope to audio
+   * @param {HTMLAudioElement} audio - Audio element to apply envelope to
+   * @param {number} durationMs - Total chord duration in ms
+   */  applyVolumeEnvelope(audio, durationMs) {
     if (!audio) return;
     
-    // ล้าง interval เดิม
+    // Clear previous interval
     if (this.volumeEnvelopeInterval) {
       clearInterval(this.volumeEnvelopeInterval);
       this.volumeEnvelopeInterval = null;
     }
     
-    const maxVolume = 0.8;  // ความดังสูงสุด
+    const maxVolume = 0.8;
     
-    // คำนวณเวลาสำหรับแต่ละช่วง (ms)
+    // Calculate time for each phase (ms)
     const attackTime = durationMs * this.volumeEnvelope.attack;
     const decayTime = durationMs * this.volumeEnvelope.decay;
     const sustainLevel = this.volumeEnvelope.sustain * maxVolume;
     const releaseTime = durationMs * this.volumeEnvelope.release;
     
-    // เวลาที่เริ่มต้นแต่ละช่วง
+    // Start time for each phase
     const decayStart = attackTime;
     const sustainStart = attackTime + decayTime;
     const releaseStart = durationMs - releaseTime;
     
-    const updateInterval = Math.min(30, durationMs / 50);  // อัพเดททุก 30ms หรือน้อยกว่าถ้า BPM สูงมาก
+    const updateInterval = Math.min(30, durationMs / 50); // 30ms = smooth updates, /50 = 2% of duration max
     let startTime = Date.now();
     
-    audio.volume = 0;  // เริ่มที่ความดัง 0
+    audio.volume = 0;
     
     this.volumeEnvelopeInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       
       if (elapsed >= durationMs) {
-        // สิ้นสุดแล้ว
         clearInterval(this.volumeEnvelopeInterval);
         this.volumeEnvelopeInterval = null;
         return;
       }
       
-      try {
-        // ใช้ ADSR envelope
+      try {        // Apply ADSR envelope phases
         if (elapsed < attackTime) {
-          // Attack phase: เพิ่มความดังจาก 0 ถึงค่าสูงสุด
+          // Attack: fade in from silence to peak volume
           const ratio = elapsed / attackTime;
           audio.volume = maxVolume * ratio;
         } 
         else if (elapsed < sustainStart) {
-          // Decay phase: ลดความดังจากค่าสูงสุดเป็น sustain
+          // Decay: reduce from peak to sustain level
           const ratio = (elapsed - decayStart) / decayTime;
           audio.volume = maxVolume - (ratio * (maxVolume - sustainLevel));
         } 
         else if (elapsed < releaseStart) {
-          // Sustain phase: รักษาความดังคงที่
+          // Sustain: hold constant volume
           audio.volume = sustainLevel;
         } 
         else {
-          // Release phase: ลดความดังลงไปถึง 0
+          // Release: fade out to silence
           const ratio = (elapsed - releaseStart) / releaseTime;
           audio.volume = sustainLevel * (1 - ratio);
         }
@@ -248,11 +242,10 @@ export default class AudioService {
       }
     }, updateInterval);
   }
-  
-  /**
-   * เล่นเสียงคอร์ดเดี่ยว
-   * @param {string} chord - ชื่อคอร์ด
-   * @returns {Promise<void>} - Promise ที่จะทำงานเสร็จเมื่อเริ่มเล่นเสียง
+    /**
+   * Play a single chord
+   * @param {string} chord - Chord name
+   * @returns {Promise<void>}
    */
   async playSingleChord(chord) {
     const audio = await this.preloadAudio(chord);
@@ -263,12 +256,11 @@ export default class AudioService {
     
     this.currentPlayingAudio = audio;
     audio.currentTime = 0;
-    audio.volume = 0;
-    
+    audio.volume = 0;    
     const playPromise = audio.play();
     
-    // ใช้ volume envelope แทน fade in ธรรมดา
-    this.applyVolumeEnvelope(audio, 2000); // 2 วินาทีสำหรับการเล่น single chord
+    // Use volume envelope instead of simple fade in
+    this.applyVolumeEnvelope(audio, 2000); // 2 seconds for single chord playback
     
     return playPromise;
   }
@@ -332,25 +324,24 @@ export default class AudioService {
    * @param {Function} onChordChange - Callback for when chord changes, receives indices
    * @param {Function} onComplete - Callback for when playback completes
    * @returns {Function} - A function to stop playback
-   */
-  async playChordSequence(chords, tempo, beatsPerChord, onChordChange, onComplete) {
+   */  async playChordSequence(chords, tempo, beatsPerChord, onChordChange, onComplete) {
     this.stopAll();
     
-    // ปรับค่า envelope ตาม tempo
+    // Adjust envelope based on tempo
     if (tempo > 150) {
-      // สำหรับ tempo เร็ว: attack เร็วขึ้น, release สั้นลง 
+      // Fast tempo: quicker attack, shorter release
       this.volumeEnvelope.attack = 0.005;
       this.volumeEnvelope.decay = 0.02;
       this.volumeEnvelope.sustain = 0.7;
       this.volumeEnvelope.release = 0.2;
     } else if (tempo > 100) {
-      // สำหรับ tempo ปานกลาง
+      // Medium tempo
       this.volumeEnvelope.attack = 0.01;
       this.volumeEnvelope.decay = 0.05;
       this.volumeEnvelope.sustain = 0.8;
       this.volumeEnvelope.release = 0.25;
     } else {
-      // สำหรับ tempo ช้า: attack นุ่มนวลขึ้น, release ยาวขึ้น
+      // Slow tempo: smoother attack, longer release
       this.volumeEnvelope.attack = 0.02;
       this.volumeEnvelope.decay = 0.08;
       this.volumeEnvelope.sustain = 0.85;
@@ -364,24 +355,23 @@ export default class AudioService {
       let sequenceIndex = 0;
       const msPerBeat = 60000 / tempo;
       let isPlaying = true;
-      
-      const playNextChord = async () => {
+        const playNextChord = async () => {
         if (sequenceIndex < chords.length && isPlaying) {
-          // ดึงข้อมูลคอร์ด
+          // Get chord information
           const currentChord = chords[sequenceIndex];
           
-          // คำนวณระยะเวลาของคอร์ด
+          // Calculate chord duration
           const currentBeats = Array.isArray(beatsPerChord) ? 
             (beatsPerChord[sequenceIndex] || 2) : beatsPerChord;
           const msPerChord = msPerBeat * currentBeats;
           
-          // คำนวณตำแหน่งสำหรับการแสดงผล
+          // Calculate position for visualization
           const { barIndex, chordIndex } = this.calculatePositionIndices(sequenceIndex, beatsPerChord);
           
-          // แจ้ง callback เมื่อเปลี่ยนคอร์ด
+          // Notify callback when chord changes
           onChordChange(barIndex, chordIndex);
           
-          // หยุดเสียงก่อนหน้า
+          // Stop previous audio
           if (this.currentPlayingAudio) {
             if (this.previousAudio) {
               this.previousAudio.pause();
@@ -393,44 +383,43 @@ export default class AudioService {
             this.fadeOutAndStop(this.previousAudio, 100);
           }
           
-          // เตรียมเสียง
+          // Prepare audio
           const audio = await this.preloadAudio(currentChord);
           
-          // ตั้งค่าเสียง
+          // Set audio properties
           this.currentPlayingAudio = audio;
           audio.currentTime = 0;
-          audio.volume = 0;  // เริ่มที่ความดัง 0
+          audio.volume = 0;
           
-          // เล่นเสียง
+          // Play audio
           try {
             await audio.play();
           } catch (error) {
             console.error('Audio play failed:', error);
           }
-          
-          // ปรับความดังตาม envelope
-          // ปรับเวลาให้น้อยลงเล็กน้อยเพื่อให้มีช่วงเวลาระหว่างคอร์ด
-          const adjustedDuration = msPerChord * 0.95;
+            // Adjust volume with envelope
+          // Reduce time slightly to create gap between chords
+          const adjustedDuration = msPerChord * 0.95; // 5% gap for natural separation
           this.applyVolumeEnvelope(audio, adjustedDuration);
           
-          // ไปยังคอร์ดถัดไป
+          // Move to next chord
           sequenceIndex++;
           
           if (sequenceIndex < chords.length && isPlaying) {
-            // ตั้งเวลาเล่นคอร์ดถัดไป
+            // Schedule next chord playback
             this.currentTimeout = setTimeout(playNextChord, msPerChord);
           } else {
-            // เล่นเสร็จแล้ว
+            // Playback complete
             const finalBeats = Array.isArray(beatsPerChord) ? 
               (beatsPerChord[sequenceIndex - 1] || 2) : beatsPerChord;
             const finalMsPerChord = msPerBeat * finalBeats;
             
-            // ตั้งเวลาสำหรับการเล่นเสร็จสิ้น
+            // Set timeout for playback completion
             this.currentTimeout = setTimeout(() => {
               isPlaying = false;
               this.stopAll();
               
-              // เรียก onComplete
+              // Call onComplete
               onComplete();
               this.currentTimeout = null;
               this.currentPlayingAudio = null;
@@ -438,12 +427,11 @@ export default class AudioService {
             }, finalMsPerChord * 0.8);
           }
         }
-      };
-      
-      // เริ่มเล่นคอร์ดแรก
+      };      
+      // Start playing first chord
       playNextChord();
       
-      // คืนฟังก์ชันสำหรับหยุดเล่น
+      // Return stop function
       return () => {
         isPlaying = false;
         this.stopAll();
@@ -452,6 +440,280 @@ export default class AudioService {
       console.error('Failed to play chord sequence:', error);
       onComplete();
       return () => {};
+    }
+  }
+    /**
+   * Set global volume for all audio playback
+   * @param {number} volume - Volume level (0.0-1.0)
+   */
+  setGlobalVolume(volume) {
+    this.globalVolume = Math.max(0, Math.min(1, volume));
+    
+    // Apply to current playing audio
+    if (this.currentPlayingAudio) {
+      this.currentPlayingAudio.volume = this.globalVolume * 0.8;
+    }
+  }  
+  // Melody Audio Playback Methods
+  
+  /**
+   * Convert melody note to audio file path
+   * @param {string} pitch - The note pitch (C, D, E, F, G, A, B)
+   * @param {number|string} octave - The octave number (2, 3, 4, 5, 6)
+   * @param {string} instrument - The instrument (piano/guitar)
+   * @returns {string} - Path to the audio file
+   */
+  getMelodyNoteAudioPath(pitch, octave, instrument) {
+    // Convert to format expected by file naming: C4, D5, etc.
+    const noteFileName = `${pitch}${octave}.mp3`;
+    return `src/assets/melodynote/${instrument}/${noteFileName}`;
+  }
+    /**
+   * Preload melody note audio files for all notes and instrument
+   * @param {Array<string>} notes - Array of note pitches
+   * @param {Array<number>} octaves - Array of octaves corresponding to notes
+   * @param {string} instrument - The instrument (piano/guitar)
+   * @returns {Promise<void>}
+   */
+  async preloadMelodyNotes(notes, octaves, instrument) {
+    if (this.isPreloading) return;
+    
+    this.isPreloading = true;
+    
+    try {
+      // Get unique notes to avoid duplicate loading
+      const uniqueNotes = [];
+      const seenNotes = new Set();
+      
+      notes.forEach((note, index) => {
+        const octave = octaves[index] || 4;
+        const noteKey = `${note}${octave}`;
+        if (!seenNotes.has(noteKey)) {
+          seenNotes.add(noteKey);
+          uniqueNotes.push({ pitch: note, octave: octave });
+        }
+      });
+      
+      // Preload all unique notes for the selected instrument
+      await Promise.allSettled(
+        uniqueNotes.map(noteObj => this.preloadMelodyNoteAudio(noteObj.pitch, noteObj.octave, instrument))
+      );
+    } catch (error) {
+      console.warn('Some melody notes failed to preload:', error);
+    } finally {
+      this.isPreloading = false;
+    }
+  }
+  
+  /**
+   * Preload a single melody note audio file
+   * @param {string} pitch - The note pitch (C, D, E, F, G, A, B)
+   * @param {number|string} octave - The octave number (2, 3, 4, 5, 6)
+   * @param {string} instrument - The instrument (piano/guitar)
+   * @returns {Promise<HTMLAudioElement>} - A promise resolving to the audio element
+   */
+  async preloadMelodyNoteAudio(pitch, octave, instrument) {
+    const noteKey = `${pitch}${octave}_${instrument}`;
+    
+    if (this.audioCache.has(noteKey)) {
+      // Create a new instance for concurrent playback
+      const cachedAudio = this.audioCache.get(noteKey);
+      const newAudio = new Audio(cachedAudio.src);
+      newAudio.volume = 0.8;
+      newAudio.preload = "auto";
+      return newAudio;
+    }
+    
+    const audioPath = this.getMelodyNoteAudioPath(pitch, octave, instrument);
+    const audio = new Audio(audioPath);
+    audio.preload = "auto";
+    audio.volume = 0.8;
+      return new Promise((resolve, reject) => {
+      audio.addEventListener('canplaythrough', () => {
+        this.audioCache.set(noteKey, audio);
+        // Create a new instance for use
+        const newAudio = new Audio(audio.src);
+        newAudio.volume = this.globalVolume * 0.8; // Apply global volume
+        newAudio.preload = "auto";
+        resolve(newAudio);
+      });
+      audio.addEventListener('error', (error) => {
+        console.warn(`Failed to load melody note: ${noteKey}`, error);
+        reject(new Error(`Failed to load melody note: ${noteKey}`));
+      });
+      audio.load();
+    });
+  }
+  
+  /**
+   * Play a single melody note
+   * @param {string} pitch - The note pitch (C, D, E, F, G, A, B)
+   * @param {number|string} octave - The octave number (2, 3, 4, 5, 6)
+   * @param {string} instrument - The instrument (piano/guitar)
+   * @returns {Promise<void>} - Promise that resolves when note starts playing
+   */
+  async playSingleMelodyNote(pitch, octave, instrument) {
+    try {
+      const audio = await this.preloadMelodyNoteAudio(pitch, octave, instrument);
+      
+      // Stop current audio if playing
+      if (this.currentPlayingAudio) {
+        this.fadeOutAndStop(this.currentPlayingAudio);
+      }
+      
+      this.currentPlayingAudio = audio;
+      audio.currentTime = 0;
+      audio.volume = 0;
+      
+      const playPromise = audio.play();
+      
+      // Apply volume envelope for natural sound
+      this.applyVolumeEnvelope(audio, 1500); // 1.5 seconds for single note
+      
+      return playPromise;
+    } catch (error) {
+      console.error(`Failed to play melody note ${pitch}${octave} on ${instrument}:`, error);
+    }
+  }
+  
+  /**
+   * Play a sequence of melody notes
+   * @param {Array<Object>} notes - Array of note objects {pitch, octave}
+   * @param {Object} settings - Settings object {tempo, numberOfBars, noteDuration}
+   * @param {string} instrument - The instrument (piano/guitar)
+   * @param {Function} onNoteChange - Callback when note changes, receives (noteIndex, note)
+   * @param {Function} onComplete - Callback when playback completes
+   * @returns {Function} - A function to stop playback
+   */  async playMelodySequence(notes, settings, instrument, onNoteChange, onComplete) {
+    this.stopAll();
+    
+    // Adjust volume envelope based on tempo and note duration
+    this.adjustVolumeEnvelopeForMelody(settings.tempo, settings.noteDuration);
+    
+    // Preload all melody notes for the selected instrument - extract arrays from note objects
+    const pitches = notes.map(note => note.pitch);
+    const octaves = notes.map(note => note.octave);
+    await this.preloadMelodyNotes(pitches, octaves, instrument);
+    
+    try {
+      let noteIndex = 0;
+      const msPerBeat = 60000 / settings.tempo;
+      const msPerNote = msPerBeat * settings.noteDuration;
+      let isPlaying = true;
+        // Check if user wants to use exact notes or fill bars
+      const useExactNotes = notes.length < 4; // Simple heuristic: few notes = use exactly
+      
+      let totalNotesToPlay;
+      if (useExactNotes) {
+        totalNotesToPlay = notes.length;
+      } else {
+        // Calculate total notes needed to fill the specified number of bars
+        const notesPerBar = 4 / settings.noteDuration; // 4/4 time signature
+        totalNotesToPlay = settings.numberOfBars * notesPerBar;
+      }
+      
+      const playNextNote = async () => {
+        if (noteIndex < totalNotesToPlay && isPlaying) {
+          // Get current note (cycle through melody pattern if needed)
+          const currentNoteIndex = noteIndex % notes.length;
+          const currentNote = notes[currentNoteIndex];
+          
+          // Notify callback about note change
+          onNoteChange(noteIndex, currentNote);
+          
+          // Stop previous audio
+          if (this.currentPlayingAudio) {
+            if (this.previousAudio) {
+              this.previousAudio.pause();
+              this.previousAudio.currentTime = 0;
+              this.previousAudio = null;
+            }
+            
+            this.previousAudio = this.currentPlayingAudio;
+            this.fadeOutAndStop(this.previousAudio, 50); // Quick fade for melody
+          }
+          
+          // Play current note
+          try {
+            const audio = await this.preloadMelodyNoteAudio(
+              currentNote.pitch, 
+              currentNote.octave, 
+              instrument
+            );
+            
+            this.currentPlayingAudio = audio;
+            audio.currentTime = 0;
+            audio.volume = 0;
+            
+            await audio.play();
+            
+            // Apply volume envelope adjusted for note duration
+            const noteDurationMs = msPerNote * 0.9; // Slight gap between notes
+            this.applyVolumeEnvelope(audio, noteDurationMs);
+            
+          } catch (error) {
+            console.error('Failed to play melody note:', error);
+          }
+          
+          noteIndex++;
+          
+          if (noteIndex < totalNotesToPlay && isPlaying) {
+            // Schedule next note
+            this.currentTimeout = setTimeout(playNextNote, msPerNote);
+          } else {
+            // Playback complete
+            this.currentTimeout = setTimeout(() => {
+              isPlaying = false;
+              this.stopAll();
+              onComplete();
+              this.currentTimeout = null;
+              this.currentPlayingAudio = null;
+              this.previousAudio = null;
+            }, msPerNote * 0.8);
+          }
+        }
+      };
+      
+      // Start playing first note
+      playNextNote();
+      
+      // Return stop function
+      return () => {
+        isPlaying = false;
+        this.stopAll();
+      };
+      
+    } catch (error) {
+      console.error('Failed to play melody sequence:', error);
+      onComplete();
+      return () => {};
+    }
+  }
+  
+  /**
+   * Adjust volume envelope settings for melody playback
+   * @param {number} tempo - The tempo in BPM
+   * @param {number} noteDuration - Duration of each note (in beats)
+   */  adjustVolumeEnvelopeForMelody(tempo, noteDuration) {
+    // Faster tempo or shorter notes = quicker envelope
+    if (tempo > 150 || noteDuration <= 0.125) {
+      // Fast tempo or short notes: quick attack/release for crisp articulation
+      this.volumeEnvelope.attack = 0.005;
+      this.volumeEnvelope.decay = 0.01;
+      this.volumeEnvelope.sustain = 0.75;
+      this.volumeEnvelope.release = 0.15;
+    } else if (tempo > 100 || noteDuration <= 0.25) {
+      // Medium tempo: balanced envelope for natural sound
+      this.volumeEnvelope.attack = 0.01;
+      this.volumeEnvelope.decay = 0.03;
+      this.volumeEnvelope.sustain = 0.8;
+      this.volumeEnvelope.release = 0.2;
+    } else {
+      // Slow tempo or long notes: gentle envelope for smooth transitions
+      this.volumeEnvelope.attack = 0.02;
+      this.volumeEnvelope.decay = 0.05;
+      this.volumeEnvelope.sustain = 0.85;
+      this.volumeEnvelope.release = 0.25;
     }
   }
 }
