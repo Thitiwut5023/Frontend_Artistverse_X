@@ -13,6 +13,7 @@ import ProgressionDetailView from '@/views/ProgressionDetailView.vue'
 import AssisatanceView from '@/views/AssisatanceView.vue'
 import MelodyView from '../views/MelodyView.vue'
 
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -81,6 +82,11 @@ const router = createRouter({
       path: '/melody',
       name: 'melody',
       component: MelodyView
+    },
+    {
+      path: '/edit-lyrics',
+      name: 'EditLyrics',
+      component: () => import('@/views/EditLyricsView.vue'),
     },
   ]
   

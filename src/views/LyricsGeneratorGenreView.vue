@@ -37,7 +37,7 @@
         class="box1 animate__animated animate__fadeIn animate__delay-2s"
         style="animation-duration: 2s"
       >
-        <h1 class="header text-4xl mb-3">Lyrics Generator</h1>
+        <h1 class="header text-4xl mb-3 text-left" >Lyrics Generator</h1>
         <div class="form-control mb-5">
           <input
             v-model="prompt"
@@ -95,13 +95,16 @@
         class="box2 mb-5 animate__animated animate__fadeIn animate__delay-2s"
         style="animation-duration: 2s"
       >
-        <h1 v-if="text">Result</h1>
+        <!-- <h1 v-if="text" class="text-left" >Result</h1> -->
+         
         <div v-if="loading" class="loader"></div>
         <div v-else>
           <pre v-if="lyrics" class="lyrics-container animate__animated animate__fadeIn">{{
             lyrics
           }}</pre>
-          <button v-if="lyrics" class="btn-save" @click="saveLyrics">Save Lyrics</button>
+          <button v-if="lyrics" class="btn-save mr-2" @click="saveLyrics">Save Lyrics</button>
+          <!-- Edit Lyrics Button -->
+          <button v-if="lyrics" class="btn-save mt-2" @click="goToEditLyrics">Edit Lyrics</button>  
         </div>
       </div>
     </div>
@@ -123,6 +126,15 @@ export default {
       errors: {}
     }
   },
+// ✅ Lifecycle hook goes here
+  mounted() {
+    const edited = localStorage.getItem('lyrics_after_edit');
+    if (edited) {
+      this.lyrics = edited;
+      localStorage.removeItem('lyrics_after_edit');
+    }
+  },
+  
   methods: {
     validateForm() {
       this.errors = {};
@@ -199,7 +211,19 @@ export default {
       a.download = 'GenreLyrics.txt';
       a.click();
       URL.revokeObjectURL(url);
-    }
+    },
+    goToEditLyrics() {
+  if (!this.lyrics) return;
+
+  // Save current lyrics in localStorage (temp storage)
+  localStorage.setItem('lyrics_before_edit', this.lyrics);
+
+  this.$router.push({
+    name: 'EditLyrics',
+  });
+}
+
+
   }
 }
 </script>
