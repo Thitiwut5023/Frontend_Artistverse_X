@@ -37,7 +37,7 @@
         class="box1 animate__animated animate__fadeIn animate__delay-2s"
         style="animation-duration: 2s"
       >
-        <h1 class="header text-4xl mb-3 text-left" >Lyrics Generator</h1>
+        <h1 class="header text-4xl mb-3" >Lyrics Generator</h1>
         <div class="form-control mb-5">
           <input
             v-model="prompt"
@@ -97,14 +97,11 @@
       >
         <!-- <h1 v-if="text" class="text-left" >Result</h1> -->
          
-        <div v-if="loading" class="loader"></div>
-        <div v-else>
+        <div v-if="loading" class="loader"></div>        <div v-else>
           <pre v-if="lyrics" class="lyrics-container animate__animated animate__fadeIn">{{
             lyrics
           }}</pre>
-          <button v-if="lyrics" class="btn-save mr-2" @click="saveLyrics">Save Lyrics</button>
-          <!-- Edit Lyrics Button -->
-          <button v-if="lyrics" class="btn-save mt-2" @click="goToEditLyrics">Edit Lyrics</button>  
+          <EditAndSaveLyricsButton :lyrics="lyrics" filename="GenreLyrics.txt" @regenerate="generateLyrics" />
         </div>
       </div>
     </div>
@@ -113,8 +110,12 @@
 
 <script>
 import Swal from 'sweetalert2';
+import EditAndSaveLyricsButton from '@/components/EditAndSaveLyricsButton.vue';
 
 export default {
+  components: {
+    EditAndSaveLyricsButton
+  },
   data() {
     return {
       prompt: '',
@@ -184,46 +185,11 @@ export default {
             },
             position: 'top',
           });
-        }
-      } finally {
-        this.loading = false
-        this.text = false
+        }      } finally {
+        this.loading = false;
+        this.text = false;
       }
-    },
-    saveLyrics() {
-      if (!navigator.onLine) {
-        Swal.fire({
-          icon: "error",
-          title: "No internet connection.",
-          text: "Unable to save lyrics",
-          customClass: {
-            popup: 'swal2-top-center',
-          },
-          position: 'top',
-        });
-        return;
-      }
-
-      const blob = new Blob([this.lyrics], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'GenreLyrics.txt';
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    goToEditLyrics() {
-  if (!this.lyrics) return;
-
-  // Save current lyrics in localStorage (temp storage)
-  localStorage.setItem('lyrics_before_edit', this.lyrics);
-
-  this.$router.push({
-    name: 'EditLyrics',
-  });
-}
-
-
+    }
   }
 }
 </script>

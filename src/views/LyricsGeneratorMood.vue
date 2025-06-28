@@ -98,13 +98,11 @@
         style="animation-duration: 2s"
       >
         <h1 v-if="text">Result</h1>
-        <div v-if="loading" class="loader"></div>
-
-        <div v-else>
+        <div v-if="loading" class="loader"></div>        <div v-else>
           <pre v-if="lyrics" class="lyrics-container animate__animated animate__fadeIn">{{
             lyrics
           }}</pre>
-          <button v-if="lyrics" class="btn-save" @click="saveLyrics">Save Lyrics</button>
+          <EditAndSaveLyricsButton :lyrics="lyrics" filename="MoodLyrics.txt" @regenerate="generateLyrics" />
         </div>
       </div>
     </div>
@@ -113,8 +111,12 @@
 
 <script>
 import Swal from 'sweetalert2';
+import EditAndSaveLyricsButton from '@/components/EditAndSaveLyricsButton.vue';
 
 export default {
+  components: {
+    EditAndSaveLyricsButton
+  },
   data() {
     return {
       prompt: '',
@@ -173,32 +175,9 @@ export default {
             position: 'top',
           });
         }
-      } finally {
-        this.loading = false
+      } finally {        this.loading = false
         this.text = false
       }
-    },
-    saveLyrics() {
-      if (!navigator.onLine) {
-        Swal.fire({
-          icon: "error",
-          title: "No internet connection.",
-          text: "Unable to save lyrics",
-          customClass: {
-            popup: 'swal2-top-center',
-          },
-          position: 'top',
-        });
-        return;
-      }
-
-      const blob = new Blob([this.lyrics], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'MoodLyrics.txt';
-      a.click();
-      URL.revokeObjectURL(url);
     }
   }
 }
