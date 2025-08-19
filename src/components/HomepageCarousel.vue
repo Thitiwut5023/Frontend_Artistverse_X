@@ -339,7 +339,7 @@ export default {
   position: absolute;
   top: 50%;
   right: 50px;
-  z-index: 100;
+  z-index: 40;
 }
 
 .arrows button {

@@ -12,6 +12,7 @@ import ProgressionView from '@/views/ProgressionView.vue'
 import ProgressionDetailView from '@/views/ProgressionDetailView.vue'
 import AssisatanceView from '@/views/AssisatanceView.vue'
 import MelodyView from '../views/MelodyView.vue'
+import SearchView from '../views/SearchView.vue'
 
 
 const router = createRouter({
@@ -82,11 +83,15 @@ const router = createRouter({
       path: '/melody',
       name: 'melody',
       component: MelodyView
-    },
-    {
+    },    {
       path: '/edit-lyrics',
       name: 'EditLyrics',
       component: () => import('@/views/EditLyricsView.vue'),
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: SearchView
     },
   ]
   
