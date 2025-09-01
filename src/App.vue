@@ -67,9 +67,6 @@
           <ul class="menu menu-lg dropdown-content mt-3 z-[60] p-2 shadow bg-base-100 rounded-box w-70">            <router-link to="/"
               ><li><a>Homepage</a></li></router-link
             >
-            <router-link to="/search"
-              ><li><a>Search</a></li></router-link
-            >
             <router-link to="/layoutview"
               ><li><a>Lyrics Generate</a></li></router-link
             >
