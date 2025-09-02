@@ -2,7 +2,41 @@
   <div class="song-recommend-section">
     <div class="container">
       <h2 class="section-title">Song Recommend for you</h2>
-      <div class="slider-wrapper">
+      
+      <!-- Authentication Required Message -->
+      <div v-if="!isAuthenticated" class="auth-required-message">
+        <div class="auth-container">
+          <div class="auth-icon">🎵</div>
+          <h3>Login Required</h3>
+          <p>Please login with Spotify to get personalized song recommendations</p>
+          <button @click="loginWithSpotify" class="spotify-login-btn" :disabled="isLoggingIn">
+            <svg class="spotify-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/>
+            </svg>
+            {{ isLoggingIn ? 'Connecting...' : 'Login with Spotify' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div v-else-if="isLoading" class="loading-container">
+        <div class="loading-spinner">
+          <div class="spinner"></div>
+          <h3>Loading Recommendations...</h3>
+          <p>Getting your personalized music recommendations from Spotify</p>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h3>Unable to Load Recommendations</h3>
+        <p>{{ error }}</p>
+        <button @click="loadRecommendations" class="retry-btn">Try Again</button>
+      </div>
+
+      <!-- Recommendations Content -->
+      <div v-else class="slider-wrapper">
         <!-- Navigation Buttons -->
         <button class="nav-btn prev-btn" @click="scrollLeft" :disabled="isAtStart">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -20,31 +54,30 @@
         <div class="songs-container" ref="songsContainer" @scroll="checkScrollPosition">
           <div 
             v-for="(song, index) in recommendedSongs" 
-            :key="index"
+            :key="song.id || index"
             class="song-card"
             :class="{ 'selected': selectedSong && selectedSong.id === song.id }"
             @click="selectSong(song)"
           >
             <div class="song-image">
-              <img v-if="song.image" :src="song.image" :alt="song.name" />
+              <img v-if="song.image" :src="song.image" :alt="song.name" @error="handleImageError" />
               <div v-else class="placeholder-image">
                 <i class="music-icon">🎵</i>
               </div>
-            </div>
-            <div class="song-info">
-              <h3 class="song-name">{{ song.name || 'Song name' }}</h3>
-              <p class="artist-name">{{ song.artist || 'Artist' }}</p>
+            </div>            <div class="song-info">
+              <h3 class="song-name">{{ song.name || 'Unknown Song' }}</h3>
+              <p class="artist-name">{{ song.artist || 'Unknown Artist' }}</p>
             </div>
           </div>
         </div>
       </div>
       
       <!-- Song Details Section -->
-      <div v-if="selectedSong" class="song-details-section" ref="songDetailsSection">
+      <div v-if="selectedSong && isAuthenticated" class="song-details-section" ref="songDetailsSection">
         <div class="song-details-container">
           <div class="song-details-header">
             <div class="song-details-image">
-              <img v-if="selectedSong.image" :src="selectedSong.image" :alt="selectedSong.name" />
+              <img v-if="selectedSong.image" :src="selectedSong.image" :alt="selectedSong.name" @error="handleImageError" />
               <div v-else class="placeholder-detail-image">
                 <i class="music-icon">🎵</i>
               </div>
@@ -53,55 +86,114 @@
               <h2 class="detail-song-name">{{ selectedSong.name }}</h2>
               <p class="detail-artist-name">{{ selectedSong.artist }}</p>
               <div class="song-meta">
-                <span class="meta-item">{{ selectedSong.mood }}</span>
-                <span class="meta-item">{{ selectedSong.genre }}</span>
-                <span class="meta-item">{{ selectedSong.year }}</span>
+                <span v-if="selectedSong.mood" class="meta-item">{{ selectedSong.mood }}</span>
+                <span v-if="selectedSong.genre" class="meta-item">{{ selectedSong.genre }}</span>
+                <span v-if="selectedSong.year" class="meta-item">{{ selectedSong.year }}</span>
+              </div>
+              <div v-if="selectedSong.spotify_url" class="spotify-link">
+                <a :href="selectedSong.spotify_url" target="_blank" rel="noopener noreferrer" class="spotify-btn">
+                  <svg class="spotify-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/>
+                  </svg>
+                  Listen on Spotify
+                </a>
               </div>
             </div>
           </div>
           
           <div class="song-details-content">
             <div class="lyrics-section">
-              <h3>Short Lyric</h3>
-              <p class="lyrics-text">{{ selectedSong.shortLyric }}</p>
+              <h3>About this song</h3>
+              <p class="lyrics-text">{{ selectedSong.description || selectedSong.shortLyric || 'No description available' }}</p>
             </div>
             
             <div class="song-info-grid">
               <div class="info-section">
-                <h4>What this song is about</h4>
-                <p>{{ selectedSong.description }}</p>
-              </div>
-              
-              <div class="details-grid">
-                <div class="detail-item">
-                  <span class="label">Mood:</span>
-                  <span class="value">{{ selectedSong.mood }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Genre:</span>
-                  <span class="value">{{ selectedSong.genre }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Year:</span>
-                  <span class="value">{{ selectedSong.year }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Keywords:</span>
-                  <span class="value">{{ selectedSong.keywords }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Tempo:</span>
-                  <span class="value">{{ selectedSong.tempo }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Style:</span>
-                  <span class="value">{{ selectedSong.style }}</span>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Instruments:</span>
-                  <span class="value">{{ selectedSong.instruments }}</span>
-                </div>
-              </div>
+                <h4>Track Information</h4>
+                <div class="details-grid">
+                  <div v-if="selectedSong.mood" class="detail-item">
+                    <span class="label">Mood:</span>
+                    <span class="value">{{ selectedSong.mood }}</span>
+                  </div>
+                  <div v-if="selectedSong.genre" class="detail-item">
+                    <span class="label">Genre:</span>
+                    <span class="value">{{ selectedSong.genre }}</span>
+                  </div>
+                  <div v-if="selectedSong.year" class="detail-item">
+                    <span class="label">Year:</span>
+                    <span class="value">{{ selectedSong.year }}</span>
+                  </div>
+                  <div v-if="selectedSong.album" class="detail-item">
+                    <span class="label">Album:</span>
+                    <span class="value">{{ selectedSong.album }}</span>
+                  </div>                  <div v-if="selectedSong.tempo" class="detail-item">
+                    <span class="label">Tempo:</span>
+                    <span class="value">
+                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
+                      <span v-else>{{ selectedSong.tempo }}</span>
+                    </span>
+                  </div>
+                  <div v-if="selectedSong.key" class="detail-item">
+                    <span class="label">Key:</span>
+                    <span class="value">
+                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
+                      <span v-else>{{ selectedSong.key }} {{ selectedSong.mode || '' }}</span>
+                    </span>
+                  </div>
+                  <div v-if="selectedSong.popularity" class="detail-item">
+                    <span class="label">Popularity:</span>
+                    <span class="value">{{ selectedSong.popularity }}/100</span>
+                  </div>
+                  <div v-if="selectedSong.duration_ms" class="detail-item">
+                    <span class="label">Duration:</span>
+                    <span class="value">{{ formatDuration(selectedSong.duration_ms) }}</span>
+                  </div>
+                  <div v-if="selectedSong.style" class="detail-item">
+                    <span class="label">Style:</span>
+                    <span class="value">{{ selectedSong.style }}</span>
+                  </div>
+                  <div v-if="selectedSong.instruments" class="detail-item">
+                    <span class="label">Instruments:</span>
+                    <span class="value">{{ selectedSong.instruments }}</span>
+                  </div>
+                  <div v-if="selectedSong.keywords" class="detail-item">
+                    <span class="label">Keywords:</span>
+                    <span class="value">{{ selectedSong.keywords }}</span>
+                  </div>
+                  <div v-if="selectedSong.energy !== undefined" class="detail-item">
+                    <span class="label">Energy:</span>
+                    <span class="value">
+                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
+                      <span v-else>{{ selectedSong.energy }}/100</span>
+                    </span>
+                  </div>
+                  <div v-if="selectedSong.valence !== undefined" class="detail-item">
+                    <span class="label">Valence:</span>
+                    <span class="value">
+                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
+                      <span v-else>{{ selectedSong.valence }}/100</span>
+                    </span>
+                  </div>
+                  <div v-if="selectedSong.danceability !== undefined" class="detail-item">
+                    <span class="label">Danceability:</span>
+                    <span class="value">
+                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
+                      <span v-else>{{ selectedSong.danceability }}/100</span>
+                    </span>
+                  </div>
+                  <div v-if="selectedSong.acousticness !== undefined" class="detail-item">
+                    <span class="label">Acousticness:</span>
+                    <span class="value">
+                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
+                      <span v-else>{{ selectedSong.acousticness }}/100</span>
+                    </span>
+                  </div>
+                </div>              </div>
+            </div>
+            
+            <!-- Audio Features Loading Notice -->
+            <div v-if="selectedSong && selectedSong.tempo === 'Unknown' && !loadingFeatures" class="features-notice">
+              <p>🎵 Audio features are estimated from track metadata</p>
             </div>
           </div>
         </div>
@@ -111,173 +203,251 @@
 </template>
 
 <script>
+import { useAuthStore } from '@/stores/auth'
+import spotifyRecommendService from '@/services/spotifyRecommendService'
+
 export default {
   name: 'SongRecommendSection',
-  data() {
+  setup() {
+    const authStore = useAuthStore()
+    return { authStore }
+  },  data() {
     return {
       isAtStart: true,
       isAtEnd: false,
       selectedSong: null,
-      recommendedSongs: [
-        {
-          id: 1,
-          name: 'Song name',
-          artist: 'Artist',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '20xx',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'Brings me back up from a dream\nWhere you and I had to say goodbye\nAnd I don\'t know what it all means\nBut since I survived, I realized\nWherever you go, that\'s where I\'ll follow\nNobody\'s promised tomorrow...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory. It\'s a specific take on romantic heartbreak, where the smile of a loved one becomes a symbol of both comfort and loss.'
-        },
-        {
-          id: 2,
-          name: 'Die With Your Smile',
-          artist: 'Bruno Mars',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '2024',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'I just wanna see you smile\nEven if it\'s for a while\nJust wanna see you smile again\nI\'d rather die with your smile...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory. It\'s a specific take on romantic heartbreak, where the smile of a loved one becomes a symbol of both comfort and loss.'
-        },
-        {
-          id: 3,
-          name: 'Song All Too Well Artist',
-          artist: 'Taylor swift',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '2021',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'And you call me up again just to break me like a promise\nSo casually cruel in the name of being honest\nI\'m a crumpled up piece of paper lying here...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory. It\'s a specific take on romantic heartbreak, where the smile of a loved one becomes a symbol of both comfort and loss.'
-        },
-        {
-          id: 4,
-          name: 'Song name',
-          artist: 'Artist',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '20xx',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'Sample lyrics for this song...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory.'
-        },
-        {
-          id: 5,
-          name: 'Song name',
-          artist: 'Artist',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '20xx',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'Sample lyrics for this song...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory.'
-        },
-        {
-          id: 6,
-          name: 'Song name',
-          artist: 'Artist',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '20xx',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'Sample lyrics for this song...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory.'
-        },
-        {
-          id: 7,
-          name: 'Song name',
-          artist: 'Artist',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '20xx',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'Sample lyrics for this song...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory.'
-        },
-        {
-          id: 8,
-          name: 'Song name',
-          artist: 'Artist',
-          image: null,
-          mood: 'Sad, Romantic',
-          genre: 'Lo-fi, Sad Pop',
-          year: '20xx',
-          tempo: '74 BPM',
-          style: 'Joji, Keshi',
-          instruments: 'Guitar, Pad',
-          keywords: 'smile, goodbye, fade',
-          shortLyric: 'Sample lyrics for this song...',
-          description: 'This song expresses the longing to remember someone\'s smile as a final emotional memory.'
-        }
-      ]
+      recommendedSongs: [],
+      isLoading: false,
+      isLoggingIn: false,
+      error: null,
+      // Cache for audio features
+      audioFeaturesCache: new Map(),
+      loadingFeatures: false
     }
   },
-  mounted() {
-    this.checkScrollPosition();
+  computed: {
+    isAuthenticated() {
+      return this.authStore.isAuthenticated
+    }
+  },  async mounted() {
+    // Load recommendations if user is authenticated
+    if (this.isAuthenticated) {
+      await this.loadRecommendations()
+    }
+    
+    // Setup scroll position checking after next tick
+    this.$nextTick(() => {
+      this.checkScrollPosition()
+    })
+  },  watch: {
+    // Watch for authentication changes
+    isAuthenticated(newVal) {
+      if (newVal) {
+        this.loadRecommendations()
+      } else {
+        this.recommendedSongs = []
+        this.selectedSong = null
+        this.error = null
+      }
+    },
+    // Watch for songs changes to update scroll position
+    recommendedSongs() {
+      this.$nextTick(() => {
+        this.checkScrollPosition()
+      })
+    }
   },
   methods: {
+    async loginWithSpotify() {
+      try {
+        this.isLoggingIn = true
+        await this.authStore.login()
+      } catch (error) {
+        console.error('Login failed:', error)
+        this.error = 'Failed to login with Spotify. Please try again.'
+      } finally {
+        this.isLoggingIn = false
+      }
+    },
+
+    async loadRecommendations() {
+      if (!this.isAuthenticated) {
+        return
+      }
+
+      try {
+        this.isLoading = true
+        this.error = null        // Ensure valid token
+        await this.authStore.ensureValidToken()
+        
+        // Set authorization token in service
+        spotifyRecommendService.setAuthToken(this.authStore.accessToken)        // Get recommendations with default genres
+        const defaultGenres = ['pop', 'rock', 'hip-hop', 'indie']
+        const response = await spotifyRecommendService.getRecommendations(defaultGenres, 12)
+          if (response.success) {
+          this.recommendedSongs = response.data?.recommendations || []
+          
+          // Don't load track features automatically anymore
+          // Let user click on songs to load features individually
+        } else {
+          throw new Error(response.message || 'Failed to load recommendations')
+        }
+      } catch (error) {
+        console.error('Error loading recommendations:', error)
+        this.error = error.message || 'Unable to load recommendations. Please try again.'
+        this.recommendedSongs = []
+      } finally {
+        this.isLoading = false
+      }
+    },    async loadTrackFeatures() {
+      try {
+        // Get Spotify IDs for tracks that have them
+        const trackIds = this.recommendedSongs
+          .filter(song => song.spotify_id)
+          .map(song => song.spotify_id)
+          .slice(0, 10) // Limit to first 10 to avoid rate limits
+
+        if (trackIds.length === 0) return
+
+        const featuresResponse = await spotifyRecommendService.getTrackFeatures(
+          this.authStore.accessToken,
+          trackIds
+        )
+
+        if (featuresResponse.success && featuresResponse.features) {
+          // Update songs with detailed features
+          this.recommendedSongs = this.recommendedSongs.map(song => {
+            if (song.spotify_id && featuresResponse.features[song.spotify_id]) {
+              return spotifyRecommendService.formatTrackData(song, featuresResponse.features)
+            }
+            return song
+          })
+        }
+      } catch (error) {
+        console.error('Error loading track features:', error)
+        // Don't show error to user as this is non-critical
+      }
+    },
+
     selectSong(song) {
-      this.selectedSong = song;
+      this.selectedSong = song
+      
+      // Load audio features for this specific song if not cached
+      this.loadSingleTrackFeatures(song)
+      
       // Auto scroll to details section
       this.$nextTick(() => {
         if (this.$refs.songDetailsSection) {
           this.$refs.songDetailsSection.scrollIntoView({ 
             behavior: 'smooth',
             block: 'start'
-          });
+          })
         }
-      });
+      })
     },
-    scrollLeft() {
-      const container = this.$refs.songsContainer;
-      container.scrollBy({
-        left: -300,
-        behavior: 'smooth'
-      });
+
+    async loadSingleTrackFeatures(song) {
+      if (!song.spotify_id) return
+
+      // Check if features are already cached
+      if (this.audioFeaturesCache.has(song.spotify_id)) {
+        const cachedFeatures = this.audioFeaturesCache.get(song.spotify_id)
+        this.selectedSong = { ...song, ...cachedFeatures }
+        return
+      }
+
+      // Load features for this specific track
+      try {
+        this.loadingFeatures = true
+
+        const featuresResponse = await spotifyRecommendService.getTrackFeatures(
+          this.authStore.accessToken,
+          [song.spotify_id]
+        )
+
+        if (featuresResponse.success && featuresResponse.features && featuresResponse.features[song.spotify_id]) {
+          const features = featuresResponse.features[song.spotify_id]
+          
+          // Cache the features
+          this.audioFeaturesCache.set(song.spotify_id, features)
+          
+          // Update selected song with features
+          this.selectedSong = { ...song, ...features }
+          
+          // Also update the song in recommendedSongs array if it exists there
+          const songIndex = this.recommendedSongs.findIndex(s => s.spotify_id === song.spotify_id)
+          if (songIndex !== -1) {
+            this.recommendedSongs[songIndex] = { ...this.recommendedSongs[songIndex], ...features }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading single track features:', error)
+        // Don't show error to user, just keep original song data
+      } finally {
+        this.loadingFeatures = false
+      }
+    },scrollLeft() {
+      const container = this.$refs.songsContainer
+      if (container) {
+        container.scrollBy({
+          left: -300,
+          behavior: 'smooth'
+        })
+        // Check position after scroll animation
+        setTimeout(() => {
+          this.checkScrollPosition()
+        }, 500)
+      }
     },
+
     scrollRight() {
-      const container = this.$refs.songsContainer;
-      container.scrollBy({
-        left: 300,
-        behavior: 'smooth'
-      });
-    },
-    checkScrollPosition() {
-      const container = this.$refs.songsContainer;
-      if (!container) return;
+      const container = this.$refs.songsContainer
+      if (container) {
+        container.scrollBy({
+          left: 300,
+          behavior: 'smooth'
+        })
+        // Check position after scroll animation
+        setTimeout(() => {
+          this.checkScrollPosition()
+        }, 500)
+      }
+    },checkScrollPosition() {
+      const container = this.$refs.songsContainer
+      if (!container) {
+        this.isAtStart = true
+        this.isAtEnd = true
+        return
+      }
       
-      this.isAtStart = container.scrollLeft === 0;
-      this.isAtEnd = container.scrollLeft >= (container.scrollWidth - container.clientWidth - 10);
+      // Check if there's enough content to scroll
+      const hasScrollableContent = container.scrollWidth > container.clientWidth
+      
+      if (!hasScrollableContent) {
+        this.isAtStart = true
+        this.isAtEnd = true
+        return
+      }
+      
+      this.isAtStart = container.scrollLeft <= 5
+      this.isAtEnd = container.scrollLeft >= (container.scrollWidth - container.clientWidth - 5)
+    },
+
+    handleImageError(event) {
+      // Hide broken image and show placeholder
+      event.target.style.display = 'none'
+      const placeholder = event.target.nextElementSibling
+      if (placeholder) {
+        placeholder.style.display = 'flex'
+      }
+    },
+
+    formatDuration(durationMs) {
+      if (!durationMs) return '0:00'
+      
+      const minutes = Math.floor(durationMs / 60000)
+      const seconds = Math.floor((durationMs % 60000) / 1000)
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`
     }
   }
 }
@@ -318,6 +488,163 @@ export default {
   letter-spacing: 3px;
   text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
   text-transform: uppercase;
+}
+
+/* Authentication Required State */
+.auth-required-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.auth-container {
+  text-align: center;
+  max-width: 500px;
+  padding: 60px 40px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 25px;
+  backdrop-filter: blur(15px);
+}
+
+.auth-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+}
+
+.auth-container h3 {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #ffffff;
+  margin-bottom: 15px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.auth-container p {
+  font-size: 1.1rem;
+  color: #cccccc;
+  margin-bottom: 30px;
+  line-height: 1.6;
+}
+
+.spotify-login-btn {
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  border-radius: 50px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+}
+
+.spotify-login-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+  background: linear-gradient(135deg, #1ed760 0%, #1db954 100%);
+}
+
+.spotify-login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spotify-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Loading State */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 60px 40px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #1db954;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner h3 {
+  font-size: 1.5rem;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+
+.loading-spinner p {
+  color: #cccccc;
+  font-size: 1rem;
+}
+
+/* Error State */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  text-align: center;
+  padding: 60px 40px;
+}
+
+.error-icon {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+
+.error-container h3 {
+  font-size: 1.8rem;
+  color: #ffffff;
+  margin-bottom: 15px;
+}
+
+.error-container p {
+  color: #ff6b6b;
+  font-size: 1rem;
+  margin-bottom: 25px;
+  max-width: 400px;
+}
+
+.retry-btn {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
 }
 
 .slider-wrapper {
@@ -585,6 +912,7 @@ export default {
   display: flex;
   gap: 15px;
   flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 
 .meta-item {
@@ -594,6 +922,37 @@ export default {
   font-size: 0.9rem;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.spotify-link {
+  margin-top: 15px;
+}
+
+.spotify-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+  color: white;
+  text-decoration: none;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(29, 185, 84, 0.3);
+}
+
+.spotify-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4);
+  text-decoration: none;
+  color: white;
+}
+
+.spotify-btn .spotify-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .song-details-content {
@@ -682,7 +1041,21 @@ export default {
   .details-grid {
     grid-template-columns: 1fr;
   }
+
+  .auth-container {
+    padding: 40px 20px;
+  }
+
+  .auth-container h3 {
+    font-size: 1.5rem;
+  }
+
+  .spotify-login-btn {
+    padding: 12px 25px;
+    font-size: 1rem;
+  }
 }
+
 @media (max-width: 768px) {
   .song-recommend-section {
     padding: 60px 15px;
@@ -750,10 +1123,42 @@ export default {
     width: 35px;
     height: 35px;
   }
-  
-  .nav-btn svg {
+    .nav-btn svg {
     width: 16px;
     height: 16px;
   }
+}
+
+/* Loading Features Animation */
+.loading-features {
+  color: #1db954;
+  font-style: italic;
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Features Notice */
+.features-notice {
+  margin-top: 15px;
+  padding: 10px 15px;
+  background: rgba(29, 185, 84, 0.1);
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.features-notice p {
+  margin: 0;
+  color: #1db954;
+  font-size: 14px;
+  font-style: italic;
 }
 </style>

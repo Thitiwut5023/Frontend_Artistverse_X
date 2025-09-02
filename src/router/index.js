@@ -13,6 +13,7 @@ import ProgressionDetailView from '@/views/ProgressionDetailView.vue'
 import AssisatanceView from '@/views/AssisatanceView.vue'
 import MelodyView from '../views/MelodyView.vue'
 import SearchView from '../views/SearchView.vue'
+import SpotifyCallbackView from '../views/SpotifyCallbackView.vue'
 
 
 const router = createRouter({
@@ -48,8 +49,7 @@ const router = createRouter({
       path: '/ai-assistance',
       name: 'ai-assistance',
       component: AssisatanceView
-    },
-    {
+    },    {
       path: '/recommend',
       name: 'recommend',
       component: RecommendSongView
@@ -87,13 +87,16 @@ const router = createRouter({
       path: '/edit-lyrics',
       name: 'EditLyrics',
       component: () => import('@/views/EditLyricsView.vue'),
-    },
-    {
+    },    {
       path: '/search',
       name: 'search',
       component: SearchView
     },
-  ]
+    {
+      path: '/callback',
+      name: 'spotify-callback',
+      component: SpotifyCallbackView
+    },  ]
   
 })
 
