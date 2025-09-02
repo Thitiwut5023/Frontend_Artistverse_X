@@ -64,31 +64,29 @@
               <div v-else class="placeholder-image">
                 <i class="music-icon">🎵</i>
               </div>
-            </div>            <div class="song-info">
-              <h3 class="song-name">{{ song.name || 'Unknown Song' }}</h3>
-              <p class="artist-name">{{ song.artist || 'Unknown Artist' }}</p>
+            </div>            <div class="song-info">              <h3 class="song-name">{{ song.song_title || song.name || 'Unknown Song' }}</h3>
+              <p class="artist-name">{{ song.artist_name || song.artist || 'Unknown Artist' }}</p>
             </div>
           </div>
         </div>
       </div>
-      
-      <!-- Song Details Section -->
+        <!-- Song Details Section -->
       <div v-if="selectedSong && isAuthenticated" class="song-details-section" ref="songDetailsSection">
         <div class="song-details-container">
           <div class="song-details-header">
             <div class="song-details-image">
-              <img v-if="selectedSong.image" :src="selectedSong.image" :alt="selectedSong.name" @error="handleImageError" />
+              <img v-if="selectedSong.image" :src="selectedSong.image" :alt="selectedSong.song_title" @error="handleImageError" />
               <div v-else class="placeholder-detail-image">
                 <i class="music-icon">🎵</i>
               </div>
             </div>
             <div class="song-details-info">
-              <h2 class="detail-song-name">{{ selectedSong.name }}</h2>
-              <p class="detail-artist-name">{{ selectedSong.artist }}</p>
+              <h2 class="detail-song-name">{{ selectedSong.song_title }}</h2>
+              <p class="detail-artist-name">{{ selectedSong.artist_name }}</p>
               <div class="song-meta">
-                <span v-if="selectedSong.mood" class="meta-item">{{ selectedSong.mood }}</span>
                 <span v-if="selectedSong.genre" class="meta-item">{{ selectedSong.genre }}</span>
-                <span v-if="selectedSong.year" class="meta-item">{{ selectedSong.year }}</span>
+                <span v-if="selectedSong.release_year" class="meta-item">{{ selectedSong.release_year }}</span>
+                <span v-if="selectedSong.duration" class="meta-item">{{ selectedSong.duration }}</span>
               </div>
               <div v-if="selectedSong.spotify_url" class="spotify-link">
                 <a :href="selectedSong.spotify_url" target="_blank" rel="noopener noreferrer" class="spotify-btn">
@@ -100,100 +98,76 @@
               </div>
             </div>
           </div>
-          
-          <div class="song-details-content">
-            <div class="lyrics-section">
-              <h3>About this song</h3>
-              <p class="lyrics-text">{{ selectedSong.description || selectedSong.shortLyric || 'No description available' }}</p>
+            <div class="song-details-content">
+            <!-- Song Content Section with ChatGPT Integration -->
+            <div class="content-section">
+              <h3>Song Content</h3>
+              <div class="content-info">
+                <div v-if="selectedSong.generatedContent" class="detail-item generated-content">
+                  <div class="content-text">{{ selectedSong.generatedContent }}</div>
+                </div>
+                <div v-else class="detail-item no-content">
+                  <button 
+                    @click="generateSongContent" 
+                    :disabled="isGeneratingContent"
+                    class="generate-content-btn"
+                  >
+                    <div v-if="isGeneratingContent" class="loading-dots">
+                      <span></span><span></span><span></span>
+                    </div>
+                    <span v-else>Generate Song Analysis</span>
+                  </button>
+                </div>
+                
+                <div v-if="selectedSong.mood" class="detail-item">
+                  <span class="label">Mood:</span>
+                  <span class="value">{{ selectedSong.mood }}</span>
+                </div>
+                <div v-if="selectedSong.keywords && selectedSong.keywords.length" class="detail-item keywords-item">
+                  <span class="label">Keywords:</span>
+                  <div class="keywords-list">
+                    <span v-for="keyword in selectedSong.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
+                  </div>                
+                </div>
+              </div>
             </div>
             
-            <div class="song-info-grid">
-              <div class="info-section">
-                <h4>Track Information</h4>
-                <div class="details-grid">
-                  <div v-if="selectedSong.mood" class="detail-item">
-                    <span class="label">Mood:</span>
-                    <span class="value">{{ selectedSong.mood }}</span>
-                  </div>
-                  <div v-if="selectedSong.genre" class="detail-item">
-                    <span class="label">Genre:</span>
-                    <span class="value">{{ selectedSong.genre }}</span>
-                  </div>
-                  <div v-if="selectedSong.year" class="detail-item">
-                    <span class="label">Year:</span>
-                    <span class="value">{{ selectedSong.year }}</span>
-                  </div>
-                  <div v-if="selectedSong.album" class="detail-item">
-                    <span class="label">Album:</span>
-                    <span class="value">{{ selectedSong.album }}</span>
-                  </div>                  <div v-if="selectedSong.tempo" class="detail-item">
-                    <span class="label">Tempo:</span>
-                    <span class="value">
-                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
-                      <span v-else>{{ selectedSong.tempo }}</span>
-                    </span>
-                  </div>
-                  <div v-if="selectedSong.key" class="detail-item">
-                    <span class="label">Key:</span>
-                    <span class="value">
-                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
-                      <span v-else>{{ selectedSong.key }} {{ selectedSong.mode || '' }}</span>
-                    </span>
-                  </div>
-                  <div v-if="selectedSong.popularity" class="detail-item">
-                    <span class="label">Popularity:</span>
-                    <span class="value">{{ selectedSong.popularity }}/100</span>
-                  </div>
-                  <div v-if="selectedSong.duration_ms" class="detail-item">
-                    <span class="label">Duration:</span>
-                    <span class="value">{{ formatDuration(selectedSong.duration_ms) }}</span>
-                  </div>
-                  <div v-if="selectedSong.style" class="detail-item">
-                    <span class="label">Style:</span>
-                    <span class="value">{{ selectedSong.style }}</span>
-                  </div>
-                  <div v-if="selectedSong.instruments" class="detail-item">
-                    <span class="label">Instruments:</span>
-                    <span class="value">{{ selectedSong.instruments }}</span>
-                  </div>
-                  <div v-if="selectedSong.keywords" class="detail-item">
-                    <span class="label">Keywords:</span>
-                    <span class="value">{{ selectedSong.keywords }}</span>
-                  </div>
-                  <div v-if="selectedSong.energy !== undefined" class="detail-item">
-                    <span class="label">Energy:</span>
-                    <span class="value">
-                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
-                      <span v-else>{{ selectedSong.energy }}/100</span>
-                    </span>
-                  </div>
-                  <div v-if="selectedSong.valence !== undefined" class="detail-item">
-                    <span class="label">Valence:</span>
-                    <span class="value">
-                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
-                      <span v-else>{{ selectedSong.valence }}/100</span>
-                    </span>
-                  </div>
-                  <div v-if="selectedSong.danceability !== undefined" class="detail-item">
-                    <span class="label">Danceability:</span>
-                    <span class="value">
-                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
-                      <span v-else>{{ selectedSong.danceability }}/100</span>
-                    </span>
-                  </div>
-                  <div v-if="selectedSong.acousticness !== undefined" class="detail-item">
-                    <span class="label">Acousticness:</span>
-                    <span class="value">
-                      <span v-if="loadingFeatures" class="loading-features">Loading...</span>
-                      <span v-else>{{ selectedSong.acousticness }}/100</span>
-                    </span>
-                  </div>
-                </div>              </div>
+            <!-- Music Style Section -->
+            <div v-if="selectedSong.music_style" class="music-style-section">
+              <h3>Music Style</h3>
+              <div class="style-description">
+                {{ selectedSong.music_style }}
+              </div>
             </div>
             
-            <!-- Audio Features Loading Notice -->
-            <div v-if="selectedSong && selectedSong.tempo === 'Unknown' && !loadingFeatures" class="features-notice">
-              <p>🎵 Audio features are estimated from track metadata</p>
+            <!-- Musical Details Section -->
+            <div class="musical-details-section">
+              <h3>Musical Details</h3>
+              <div class="details-grid">
+                <div v-if="selectedSong.genre" class="detail-item">
+                  <span class="label">Genre:</span>
+                  <span class="value">{{ selectedSong.genre }}</span>
+                </div>                <div v-if="selectedSong.beat" class="detail-item">
+                  <span class="label">Beat:</span>
+                  <span class="value">{{ selectedSong.beat }} BPM</span>
+                </div>
+                <div v-if="selectedSong.key" class="detail-item">
+                  <span class="label">Key:</span>
+                  <span class="value">{{ selectedSong.key }}</span>
+                </div>
+                <div v-if="selectedSong.release_year" class="detail-item">
+                  <span class="label">Release Year:</span>
+                  <span class="value">{{ selectedSong.release_year }}</span>
+                </div>
+                <div v-if="selectedSong.duration" class="detail-item">
+                  <span class="label">Duration:</span>
+                  <span class="value">{{ selectedSong.duration }}</span>
+                </div>
+                <div v-if="selectedSong.instruments" class="detail-item">
+                  <span class="label">Instruments:</span>
+                  <span class="value">{{ selectedSong.instruments }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -222,7 +196,10 @@ export default {
       error: null,
       // Cache for audio features
       audioFeaturesCache: new Map(),
-      loadingFeatures: false
+      loadingFeatures: false,
+      // ChatGPT content generation
+      isGeneratingContent: false,
+      contentCache: new Map() // Cache for generated song content
     }
   },
   computed: {
@@ -440,14 +417,60 @@ export default {
       if (placeholder) {
         placeholder.style.display = 'flex'
       }
-    },
-
-    formatDuration(durationMs) {
+    },    formatDuration(durationMs) {
       if (!durationMs) return '0:00'
       
       const minutes = Math.floor(durationMs / 60000)
       const seconds = Math.floor((durationMs % 60000) / 1000)
       return `${minutes}:${seconds.toString().padStart(2, '0')}`
+    },
+
+    async generateSongContent() {
+      if (!this.selectedSong || this.isGeneratingContent) {
+        return
+      }
+
+      const songKey = `${this.selectedSong.song_title || this.selectedSong.name}_${this.selectedSong.artist_name || this.selectedSong.artist}`
+
+      // Check if content is already cached
+      if (this.contentCache.has(songKey)) {
+        this.selectedSong.generatedContent = this.contentCache.get(songKey)
+        this.$forceUpdate()
+        return
+      }
+
+      try {
+        this.isGeneratingContent = true
+
+        // Call backend to generate content using ChatGPT
+        const response = await spotifyRecommendService.generateSongContent({
+          songTitle: this.selectedSong.song_title || this.selectedSong.name,
+          artistName: this.selectedSong.artist_name || this.selectedSong.artist,
+          genre: this.selectedSong.genre,
+          mood: this.selectedSong.mood,
+          keywords: this.selectedSong.keywords
+        })
+
+        if (response.success && response.data.content) {
+          const generatedContent = response.data.content
+          
+          // Cache the generated content
+          this.contentCache.set(songKey, generatedContent)
+          
+          // Update the selected song
+          this.selectedSong.generatedContent = generatedContent
+          this.$forceUpdate()
+        } else {
+          throw new Error(response.message || 'Failed to generate content')
+        }
+      } catch (error) {
+        console.error('Error generating song content:', error)
+        // Show fallback content
+        this.selectedSong.generatedContent = 'Unable to generate content at this time. Please try again later.'
+        this.$forceUpdate()
+      } finally {
+        this.isGeneratingContent = false
+      }
     }
   }
 }
@@ -1008,6 +1031,244 @@ export default {
 .detail-item .value {
   color: #cccccc;
   font-size: 0.95rem;
+}
+
+/* Enhanced Song Details Styles */
+.content-section {
+  margin-bottom: 30px;
+}
+
+.content-section h3, .musical-details-section h3 {
+  font-size: 1.3rem;
+  color: #ffffff;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.content-info .detail-item {
+  margin-bottom: 15px;
+}
+
+.keywords-item {
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 8px !important;
+}
+
+.keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword-tag {
+  background: linear-gradient(135deg, rgba(29, 185, 84, 0.2), rgba(29, 185, 84, 0.1));
+  color: #1db954;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  font-weight: 500;
+}
+
+/* ChatGPT Content Generation Styles */
+.generated-content {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 15px;
+}
+
+.content-text {
+  color: #ffffff;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  text-align: justify;
+}
+
+.no-content {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.generate-content-btn {
+  background: linear-gradient(135deg, #1db954, #1ed760);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 12px 24px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 160px;
+  justify-content: center;
+}
+
+.generate-content-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1ed760, #1db954);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(29, 185, 84, 0.3);
+}
+
+.generate-content-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.loading-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
+  animation: loading-dots 1.4s infinite ease-in-out;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+.loading-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes loading-dots {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Music Style Section */
+.music-style-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(29, 185, 84, 0.1), rgba(29, 185, 84, 0.05));
+  border-radius: 15px;
+  border: 1px solid rgba(29, 185, 84, 0.2);
+}
+
+.music-style-section h3 {
+  font-size: 1.3rem;
+  color: #1db954;
+  margin-bottom: 15px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.music-style-section h3::before {
+  content: "🎵";
+  font-size: 1.2rem;
+}
+
+.style-description {
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.6;
+  text-align: left;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.musical-details-section {
+  margin-top: 30px;
+}
+
+.music-analysis {
+  margin-top: 25px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.music-analysis h4 {
+  font-size: 1.1rem;
+  color: #ffffff;
+  margin-bottom: 15px;
+  font-weight: bold;
+}
+
+.analysis-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.analysis-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.analysis-label {
+  min-width: 100px;
+  font-size: 0.9rem;
+  color: #cccccc;
+  font-weight: 500;
+}
+
+.analysis-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.analysis-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1db954, #1ed760);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.analysis-value {
+  min-width: 40px;
+    font-size: 0.85rem;
+  color: #1db954;
+  font-weight: bold;
+  text-align: right;
+}
+
+/* Responsive adjustments for enhanced details */
+@media (max-width: 768px) {
+  .keywords-list {
+    gap: 6px;
+  }
+  
+  .keyword-tag {
+    font-size: 0.8rem;
+    padding: 3px 10px;
+  }
+  
+  .analysis-item {
+    gap: 10px;
+  }
+  
+  .analysis-label {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+  
+  .details-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 /* Responsive for song details */

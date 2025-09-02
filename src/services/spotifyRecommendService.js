@@ -223,6 +223,44 @@ class SpotifyRecommendService {
         data: null,
         message: error.message || 'Failed to get advanced recommendations'
       };
+    }  }
+
+  /**
+   * Generate song content analysis using ChatGPT
+   * @param {Object} songData - Song information for content generation
+   * @param {string} songData.songTitle - Title of the song
+   * @param {string} songData.artistName - Name of the artist
+   * @param {string} songData.genre - Genre of the song
+   * @param {string} songData.mood - Mood of the song
+   * @param {Array} songData.keywords - Keywords associated with the song
+   * @returns {Promise<Object>} Response containing generated content
+   */
+  async generateSongContent(songData) {
+    try {
+      if (!songData || !songData.songTitle || !songData.artistName) {
+        throw new Error('Song title and artist name are required');
+      }
+
+      const response = await this.axiosInstance.post('/spotify/generate-content', {
+        song_title: songData.songTitle,
+        artist_name: songData.artistName,
+        genre: songData.genre,
+        mood: songData.mood,
+        keywords: songData.keywords
+      });
+
+      return {
+        success: true,
+        data: response.data,
+        message: 'Song content generated successfully'
+      };
+    } catch (error) {
+      console.error('Error generating song content:', error);
+      return {
+        success: false,
+        data: null,
+        message: error.message || 'Failed to generate song content'
+      };
     }
   }
 
