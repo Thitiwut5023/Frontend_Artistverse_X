@@ -8,31 +8,53 @@
       <div class="search-bar-container">
         <div class="search-bar">
           <input 
-            v-model="searchQuery" 
+            v-model="searchStore.query" 
             type="text" 
             placeholder="Search for songs, artists, or styles..."
             class="search-input"
             @input="handleSearch"
+            @keyup.enter="performSearch"
+            @focus="showSuggestions = true"
           />
-          <button class="search-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <button class="search-btn" @click="performSearch" :disabled="searchStore.isLoading">
+            <div v-if="searchStore.isLoading" class="search-loading"></div>
+            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M21 21L16.515 16.515M19 10.5C19 15.194 15.194 19 10.5 19C5.806 19 2 15.194 2 10.5C2 5.806 5.806 2 10.5 2C15.194 2 19 5.806 19 10.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
+        </div>
+
+        <!-- Search Suggestions -->
+        <div v-if="showSuggestions && searchStore.recentSearches.length > 0" class="search-suggestions">
+          <div class="suggestions-header">
+            <span>Recent Searches</span>
+            <button @click="searchStore.clearHistory()" class="clear-history-btn">Clear</button>
+          </div>
+          <div 
+            v-for="search in searchStore.recentSearches.slice(0, 5)" 
+            :key="search.id"
+            class="suggestion-item"
+            @click="selectSuggestion(search)"
+          >
+            <span class="suggestion-icon">{{ getFilterIcon(search.field) }}</span>
+            <span class="suggestion-text">{{ search.query }}</span>
+            <span class="suggestion-field">{{ getFilterLabel(search.field) }}</span>
+          </div>
         </div>
       </div>
 
       <!-- Filter Tags -->
       <div class="filter-section">
         <div class="filter-group">
-          <span class="filter-label">All</span>
+          <span class="filter-label">Search by:</span>
           <button 
-            v-for="filter in filterOptions" 
-            :key="filter"
-            :class="['filter-tag', { active: activeFilters.includes(filter) }]"
-            @click="toggleFilter(filter)"
+            v-for="filter in searchStore.filterOptions" 
+            :key="filter.key"
+            :class="['filter-tag', { active: searchStore.field === filter.key }]"
+            @click="selectFilter(filter.key)"
           >
-            {{ filter }}
+            <span class="filter-icon">{{ filter.icon }}</span>
+            {{ filter.label }}
           </button>
         </div>
       </div>
@@ -41,36 +63,62 @@
     <!-- Results Section -->
     <div class="results-section">
       <div class="container">
+        <!-- Loading State -->
+        <div v-if="searchStore.isLoading && !searchStore.hasResults" class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Searching...</p>
+        </div>
+
         <!-- Results Header -->
-        <div class="results-header">
-          <h2 v-if="searchQuery" class="results-title">
-            Search results for "{{ searchQuery }}"
-          </h2>
-          <h2 v-else class="results-title">
-            Discover Music
-          </h2>
-          <p class="results-count">{{ filteredResults.length }} results found</p>
+        <div v-else-if="searchStore.hasResults" class="results-header">
+          <div class="results-info">
+            <h2 class="results-title">
+              Search results for "{{ searchStore.query }}"
+            </h2>
+            <p class="results-count">{{ searchStore.totalResults }} results found</p>
+          </div>
+          
+          <!-- Sort Options -->
+          <div class="sort-controls">
+            <label class="sort-label">Sort by:</label>
+            <select v-model="currentSort" @change="handleSortChange" class="sort-select">
+              <option value="relevance">Relevance</option>
+              <option value="name">Song Name</option>
+              <option value="artist">Artist</option>
+              <option value="year">Year</option>
+            </select>
+            <button @click="toggleSortDirection" class="sort-direction-btn">
+              {{ searchStore.sortDirection === 'asc' ? '↑' : '↓' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Default State -->
+        <div v-else-if="!searchStore.query && !searchStore.hasSearched" class="results-header">
+          <h2 class="results-title">Discover Music</h2>
+          <p class="results-count">Enter a search term to find songs</p>
         </div>
 
         <!-- Cards Grid -->
-        <div class="cards-grid">
+        <div v-if="!searchStore.isLoading && searchStore.hasResults" class="cards-grid">
           <div 
-            v-for="(item, index) in filteredResults" 
-            :key="index"
+            v-for="(item, index) in searchStore.sortedResults" 
+            :key="item.id"
             class="music-card"
             @click="selectItem(item)"
+            :style="{ animationDelay: `${index * 0.1}s` }"
           >
             <div class="card-image">
-              <img v-if="item.image" :src="item.image" :alt="item.name" />
-              <div v-else class="placeholder-image">
+              <div class="placeholder-image">
                 <i class="music-icon">🎵</i>
               </div>
+              <div class="card-score">{{ item.score?.toFixed(1) }}</div>
             </div>
             <div class="card-content">
               <h3 class="card-title">{{ item.name }}</h3>
-              <p class="card-artist">{{ item.artist }}</p>
+              <p class="card-artist">{{ item.artists }}</p>
               <div class="card-tags">
-                <span class="tag">{{ item.genre }}</span>
+                <span class="tag">{{ item.genres }}</span>
                 <span class="tag">{{ item.year }}</span>
               </div>
             </div>
@@ -78,273 +126,243 @@
         </div>
 
         <!-- Empty State -->
-        <div v-if="filteredResults.length === 0" class="empty-state">
+        <div v-if="searchStore.isEmptySearch" class="empty-state">
           <div class="empty-icon">🔍</div>
           <h3>No results found</h3>
-          <p>Try adjusting your search terms or filters</p>
+          <p>Try adjusting your search terms or search field</p>
+          <div class="empty-suggestions" v-if="searchStore.recentSearches.length > 0">
+            <p>Try one of your recent searches:</p>
+            <div class="recent-searches">
+              <button 
+                v-for="search in searchStore.recentSearches.slice(0, 3)" 
+                :key="search.id"
+                @click="selectSuggestion(search)"
+                class="recent-search-btn"
+              >
+                {{ search.query }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error State -->
+        <div v-if="searchStore.error" class="error-state">
+          <div class="error-icon">⚠️</div>
+          <h3>Search Error</h3>
+          <p>{{ searchStore.error }}</p>
+          <button @click="retrySearch" class="retry-btn">Try Again</button>
+        </div>
+
+        <!-- Load More Button -->
+        <div v-if="searchStore.hasResults && searchStore.searchStats.hasMore" class="load-more-section">
+          <button 
+            @click="searchStore.loadMore()" 
+            :disabled="searchStore.isLoading"
+            class="load-more-btn"
+          >
+            <div v-if="searchStore.isLoading" class="loading-spinner small"></div>
+            <span v-else>Load More Results</span>
+          </button>
         </div>
       </div>
-    </div>    <!-- Selected Item Details Modal -->
-    <div v-if="selectedItem" class="modal-overlay" @click="closeModal">
+    </div>
+
+    <!-- Selected Item Details Modal -->
+    <div v-if="searchStore.selectedItem" class="modal-overlay" @click="closeModal">
       <div class="modal-content" @click.stop>
         <button class="close-btn" @click="closeModal">&times;</button>
         
-        <!-- Modal Header similar to recommend section -->
+        <!-- Modal Header -->
         <div class="song-details-header">
           <div class="song-details-image">
-            <img v-if="selectedItem.image" :src="selectedItem.image" :alt="selectedItem.name" />
-            <div v-else class="placeholder-detail-image">
+            <div class="placeholder-detail-image">
               <i class="music-icon">🎵</i>
             </div>
           </div>
           <div class="song-details-info">
-            <h2 class="detail-song-name">{{ selectedItem.name }}</h2>
-            <p class="detail-artist-name">{{ selectedItem.artist }}</p>
+            <h2 class="detail-song-name">{{ searchStore.selectedItem.name }}</h2>
+            <p class="detail-artist-name">{{ searchStore.selectedItem.artists }}</p>
             <div class="song-meta">
-              <span class="meta-item">{{ selectedItem.mood }}</span>
-              <span class="meta-item">{{ selectedItem.genre }}</span>
-              <span class="meta-item">{{ selectedItem.year }}</span>
+              <span class="meta-item">{{ searchStore.selectedItem.genres }}</span>
+              <span class="meta-item">{{ searchStore.selectedItem.year }}</span>
+              <span class="meta-item">Score: {{ searchStore.selectedItem.score?.toFixed(2) }}</span>
             </div>
           </div>
         </div>
         
-        <!-- Modal Content similar to recommend section -->
+        <!-- Modal Content -->
         <div class="song-details-content">
           <div class="lyrics-section">
-            <h3>Short Lyric</h3>
-            <p class="lyrics-text">{{ selectedItem.shortLyric || 'Sample lyrics for this song...' }}</p>
+            <h3>About This Song</h3>
+            <p class="lyrics-text">
+              This song was found in our music database with a relevance score of {{ searchStore.selectedItem.score?.toFixed(2) }}. 
+              It belongs to the {{ searchStore.selectedItem.genres }} genre(s) and was released in {{ searchStore.selectedItem.year }}.
+            </p>
           </div>
           
           <div class="song-info-grid">
             <div class="info-section">
-              <h4>What this song is about</h4>
-              <p>{{ selectedItem.description || 'This song represents the artist\'s unique style and musical expression.' }}</p>
+              <h4>Song Information</h4>
+              <p>Artist: {{ searchStore.selectedItem.artists }}</p>
+              <p>Release Year: {{ searchStore.selectedItem.year }}</p>
+              <p>Genres: {{ searchStore.selectedItem.genres }}</p>
             </div>
             
             <div class="details-grid">
               <div class="detail-item">
-                <span class="label">Mood:</span>
-                <span class="value">{{ selectedItem.mood }}</span>
+                <span class="label">Song Name:</span>
+                <span class="value">{{ searchStore.selectedItem.name }}</span>
               </div>
               <div class="detail-item">
-                <span class="label">Genre:</span>
-                <span class="value">{{ selectedItem.genre }}</span>
+                <span class="label">Artist:</span>
+                <span class="value">{{ searchStore.selectedItem.artists }}</span>
               </div>
               <div class="detail-item">
                 <span class="label">Year:</span>
-                <span class="value">{{ selectedItem.year }}</span>
+                <span class="value">{{ searchStore.selectedItem.year }}</span>
               </div>
               <div class="detail-item">
-                <span class="label">Key:</span>
-                <span class="value">{{ selectedItem.key }}</span>
+                <span class="label">Genres:</span>
+                <span class="value">{{ searchStore.selectedItem.genres }}</span>
               </div>
               <div class="detail-item">
-                <span class="label">Tempo:</span>
-                <span class="value">{{ selectedItem.tempo }}</span>
+                <span class="label">Relevance Score:</span>
+                <span class="value">{{ searchStore.selectedItem.score?.toFixed(2) }}</span>
               </div>
               <div class="detail-item">
-                <span class="label">Style:</span>
-                <span class="value">{{ selectedItem.style }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">Instruments:</span>
-                <span class="value">{{ selectedItem.instruments }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">Valence:</span>
-                <span class="value">{{ selectedItem.valence }}</span>
+                <span class="label">Database ID:</span>
+                <span class="value">{{ searchStore.selectedItem.id }}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Click outside to close suggestions -->
+    <div v-if="showSuggestions" class="suggestions-backdrop" @click="showSuggestions = false"></div>
   </div>
 </template>
 
 <script>
+import { useSearchStore } from '../stores/useSearchStore';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
+
 export default {
   name: 'SearchView',
-  data() {
+  setup() {
+    const searchStore = useSearchStore();
+    const showSuggestions = ref(false);
+    const currentSort = ref('relevance');
+
+    // Initialize store
+    onMounted(() => {
+      searchStore.initialize();
+    });
+
+    // Watch for search query changes to hide suggestions
+    watch(() => searchStore.query, (newQuery) => {
+      if (!newQuery) {
+        showSuggestions.value = false;
+      }
+    });
+
+    // Handle search with debounce
+    const handleSearch = () => {
+      searchStore.searchWithDebounce(searchStore.query, searchStore.field);
+    };
+
+    // Perform immediate search
+    const performSearch = () => {
+      showSuggestions.value = false;
+      searchStore.performSearch();
+    };
+
+    // Select filter
+    const selectFilter = (filterKey) => {
+      searchStore.setField(filterKey);
+      if (searchStore.query.trim()) {
+        searchStore.performSearch();
+      }
+    };
+
+    // Select item
+    const selectItem = (item) => {
+      searchStore.setSelectedItem(item);
+    };
+
+    // Close modal
+    const closeModal = () => {
+      searchStore.clearSelectedItem();
+    };
+
+    // Retry search
+    const retrySearch = () => {
+      searchStore.clearError();
+      searchStore.performSearch();
+    };
+
+    // Select suggestion
+    const selectSuggestion = (search) => {
+      searchStore.setQuery(search.query);
+      searchStore.setField(search.field);
+      showSuggestions.value = false;
+      searchStore.performSearch();
+    };
+
+    // Handle sort change
+    const handleSortChange = () => {
+      searchStore.setSortBy(currentSort.value, 'desc');
+    };
+
+    // Toggle sort direction
+    const toggleSortDirection = () => {
+      searchStore.setSortBy(searchStore.sortBy);
+    };
+
+    // Get filter icon
+    const getFilterIcon = (field) => {
+      const filter = searchStore.filterOptions.find(f => f.key === field);
+      return filter ? filter.icon : '🔍';
+    };
+
+    // Get filter label
+    const getFilterLabel = (field) => {
+      const filter = searchStore.filterOptions.find(f => f.key === field);
+      return filter ? filter.label : 'Unknown';
+    };
+
+    // Handle click outside to close suggestions
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.search-bar-container')) {
+        showSuggestions.value = false;
+      }
+    };
+
+    onMounted(() => {
+      document.addEventListener('click', handleClickOutside);
+    });
+
+    onUnmounted(() => {
+      document.removeEventListener('click', handleClickOutside);
+    });
+
     return {
-      searchQuery: '',
-      activeFilters: [],
-      selectedItem: null,
-      filterOptions: ['Key', 'Track Name', 'Artist Name', 'Release Year', 'Valence', 'Genre'],      mockData: [
-        {
-          id: 1,
-          name: 'Cardigan',
-          artist: 'Taylor Swift',
-          image: null,
-          genre: 'Indie Folk',
-          mood: 'Melancholy',
-          year: '2020',
-          tempo: '84 BPM',
-          style: 'Taylor Swift, Bon Iver',
-          instruments: 'Guitar, Piano, Strings',
-          valence: 'Low',
-          key: 'Bb Major',
-          shortLyric: 'Vintage tee, brand new phone\nHigh heels on cobblestones\nWhen you are young, they assume you know nothing\nSequin smile, black lipstick',
-          description: 'A nostalgic ballad about lost love and looking back on a relationship that defined your youth. The song captures the bittersweet feeling of remembering someone who was once everything to you.'
-        },
-        {
-          id: 2,
-          name: 'Levitating',
-          artist: 'Dua Lipa',
-          image: null,
-          genre: 'Pop',
-          mood: 'Energetic',
-          year: '2020',
-          tempo: '103 BPM',
-          style: 'Dua Lipa, Disco',
-          instruments: 'Synths, Drums, Bass',
-          valence: 'High',
-          key: 'B Minor',
-          shortLyric: 'If you wanna run away with me\nI know a galaxy and I can take you for a ride\nI had a premonition that we fell into a rhythm\nWhere the music don\'t stop for life',
-          description: 'An uplifting disco-pop anthem about escapism and finding love that makes you feel like you\'re floating. The song combines retro disco elements with modern pop production.'
-        },
-        {
-          id: 3,
-          name: 'Blinding Lights',
-          artist: 'The Weeknd',
-          image: null,
-          genre: 'Synthwave',
-          mood: 'Upbeat',
-          year: '2019',
-          tempo: '171 BPM',
-          style: 'The Weeknd, 80s Synth',
-          instruments: 'Synths, Drums',
-          valence: 'High',
-          key: 'F# Major',
-          shortLyric: 'I\'ve been tryna call\nI\'ve been on my own for long enough\nMaybe you can show me how to love, maybe\nI feel like I\'m just missing something when you\'re gone',
-          description: 'A synth-heavy track that captures the feeling of driving through city lights at night, searching for love and connection. Heavily influenced by 80s synthwave and electronic music.'
-        },
-        {
-          id: 4,
-          name: 'Driver\'s License',
-          artist: 'Olivia Rodrigo',
-          image: null,
-          genre: 'Pop Ballad',
-          mood: 'Sad',
-          year: '2021',
-          tempo: '144 BPM',
-          style: 'Taylor Swift, Lorde',
-          instruments: 'Piano, Strings',
-          valence: 'Low',
-          key: 'Bb Major',
-          shortLyric: 'I got my driver\'s license last week\nJust like we always talked about\n\'Cause you were so excited for me\nTo finally drive up to your house',
-          description: 'A heartbreaking ballad about growing up and moving on from your first love. The song deals with themes of independence, heartbreak, and the painful process of letting go.'
-        },
-        {
-          id: 5,
-          name: 'Good 4 U',
-          artist: 'Olivia Rodrigo',
-          image: null,
-          genre: 'Pop Rock',
-          mood: 'Angry',
-          year: '2021',
-          tempo: '178 BPM',
-          style: 'Paramore, Pop Punk',
-          instruments: 'Guitar, Drums, Bass',
-          valence: 'Medium',
-          key: 'A Major',
-          shortLyric: 'Well, good for you, I guess you moved on really easily\nYou found a new girl and it only took a couple weeks\nRemember when you said that you wanted to give me the world',
-          description: 'An angsty pop-punk anthem about watching an ex-partner move on quickly while you\'re still processing the breakup. The song channels raw emotion through aggressive instrumentation.'
-        },
-        {
-          id: 6,
-          name: 'Stay',
-          artist: 'The Kid LAROI & Justin Bieber',
-          image: null,
-          genre: 'Pop',
-          mood: 'Nostalgic',
-          year: '2021',
-          tempo: '169 BPM',
-          style: 'Modern Pop, Hip-Hop',
-          instruments: 'Guitar, Drums, Synths',
-          valence: 'Medium',
-          key: 'C Major',
-          shortLyric: 'I do the same thing I told you that I never would\nI told you I\'d change, even when I knew I never could\nI know that I can\'t find nobody else as good as you',
-          description: 'A collaborative track about wanting someone to stay in your life despite knowing the relationship might not be healthy. The song blends pop melodies with hip-hop influences.'
-        },
-        {
-          id: 7,
-          name: 'Heat Waves',
-          artist: 'Glass Animals',
-          image: null,
-          genre: 'Indie Pop',
-          mood: 'Dreamy',
-          year: '2020',
-          tempo: '80 BPM',
-          style: 'Glass Animals, Alt Pop',
-          instruments: 'Synths, Guitar, Drums',
-          valence: 'Medium',
-          key: 'C# Minor',
-          shortLyric: 'Road shimmer, wiggling the vision\nHeat heat waves, I\'m swimming in a mirror\nRoad shimmer, wiggling the vision\nHeat heat waves, I\'m swimming in a',
-          description: 'A dreamy, psychedelic track about longing and separation. The song uses heat waves as a metaphor for the distortion of memory and the hazy feeling of missing someone.'
-        },
-        {
-          id: 8,
-          name: 'Montero',
-          artist: 'Lil Nas X',
-          image: null,
-          genre: 'Hip-Hop',
-          mood: 'Confident',
-          year: '2021',
-          tempo: '150 BPM',
-          style: 'Lil Nas X, Pop Rap',
-          instruments: 'Synths, Drums, Bass',
-          valence: 'High',
-          key: 'C# Minor',
-          shortLyric: 'Call me when you want, call me when you need\nCall me in the morning, I\'ll be on the way\nCall me when you want, call me when you need\nCall me out by your name, I\'ll be on the way like',
-          description: 'A bold, confident track about self-acceptance and living authentically. The song combines elements of pop and hip-hop while delivering a message of empowerment and pride.'
-        }
-      ]
-    }
-  },
-  computed: {
-    filteredResults() {
-      let results = this.mockData;
-
-      // Filter by search query
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        results = results.filter(item => 
-          item.name.toLowerCase().includes(query) ||
-          item.artist.toLowerCase().includes(query) ||
-          item.genre.toLowerCase().includes(query) ||
-          item.style.toLowerCase().includes(query)
-        );
-      }
-
-      // Filter by active filters (this would be more complex in real implementation)
-      if (this.activeFilters.length > 0) {
-        // For demo purposes, just return filtered results
-        // In real app, you would filter based on actual filter criteria
-      }
-
-      return results;
-    }
-  },
-  methods: {
-    handleSearch() {
-      // Handle search input
-      console.log('Searching for:', this.searchQuery);
-    },
-    toggleFilter(filter) {
-      const index = this.activeFilters.indexOf(filter);
-      if (index > -1) {
-        this.activeFilters.splice(index, 1);
-      } else {
-        this.activeFilters.push(filter);
-      }
-    },
-    selectItem(item) {
-      this.selectedItem = item;
-    },
-    closeModal() {
-      this.selectedItem = null;
-    }
+      searchStore,
+      showSuggestions,
+      currentSort,
+      handleSearch,
+      performSearch,
+      selectFilter,
+      selectItem,
+      closeModal,
+      retrySearch,
+      selectSuggestion,
+      handleSortChange,
+      toggleSortDirection,
+      getFilterIcon,
+      getFilterLabel
+    };
   }
 }
 </script>
@@ -374,6 +392,7 @@ export default {
 .search-bar-container {
   max-width: 600px;
   margin: 0 auto 30px;
+  position: relative;
 }
 
 .search-bar {
@@ -415,9 +434,101 @@ export default {
   transition: all 0.3s ease;
 }
 
-.search-btn:hover {
+.search-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.search-btn:hover:not(:disabled) {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.2));
   transform: scale(1.05);
+}
+
+.search-loading {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Search Suggestions */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  backdrop-filter: blur(15px);
+  z-index: 100;
+  margin-top: 5px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.clear-history-btn {
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: color 0.3s ease;
+}
+
+.clear-history-btn:hover {
+  color: #8b9eff;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.suggestion-icon {
+  font-size: 1.2rem;
+}
+
+.suggestion-text {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.suggestion-field {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.suggestions-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
 }
 
 /* Filter Section */
@@ -449,6 +560,9 @@ export default {
   font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .filter-tag:hover {
@@ -462,6 +576,10 @@ export default {
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
+.filter-icon {
+  font-size: 1rem;
+}
+
 /* Results Section */
 .results-section {
   padding: 60px 20px;
@@ -473,8 +591,15 @@ export default {
 }
 
 .results-header {
-  text-align: center;
-  margin-bottom: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+  gap: 20px;
+}
+
+.results-info {
+  flex: 1;
 }
 
 .results-title {
@@ -487,6 +612,110 @@ export default {
 .results-count {
   color: rgba(255, 255, 255, 0.7);
   font-size: 1.1rem;
+}
+
+/* Sort Controls */
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sort-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+}
+
+.sort-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.sort-select option {
+  background: #2a2a2a;
+  color: white;
+}
+
+.sort-direction-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.sort-direction-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Loading State */
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+.loading-spinner.small {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  margin: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.error-icon {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+
+.retry-btn {
+  background: linear-gradient(145deg, #667eea, #764ba2);
+  border: none;
+  border-radius: 25px;
+  padding: 10px 20px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 15px;
+  transition: all 0.3s ease;
+}
+
+.retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
 }
 
 /* Cards Grid */
@@ -508,6 +737,18 @@ export default {
   backdrop-filter: blur(10px);
   position: relative;
   overflow: hidden;
+  animation: slideInUp 0.6s ease-out both;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .music-card::before {
@@ -545,12 +786,6 @@ export default {
   position: relative;
 }
 
-.card-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .placeholder-image {
   width: 100%;
   height: 100%;
@@ -573,6 +808,18 @@ export default {
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+.card-score {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: bold;
 }
 
 .music-icon {
@@ -632,6 +879,65 @@ export default {
   color: rgba(255, 255, 255, 0.8);
 }
 
+.empty-suggestions {
+  margin-top: 30px;
+}
+
+.recent-searches {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+
+.recent-search-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.recent-search-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Load More Section */
+.load-more-section {
+  text-align: center;
+  margin-top: 40px;
+}
+
+.load-more-btn {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 25px;
+  padding: 15px 30px;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -661,17 +967,6 @@ export default {
   animation: slideInUp 0.6s ease-out;
 }
 
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .close-btn {
   position: absolute;
   top: 20px;
@@ -688,7 +983,7 @@ export default {
   color: #ff6b6b;
 }
 
-/* Song Details Header - similar to recommend section */
+/* Song Details Header */
 .song-details-header {
   display: flex;
   gap: 30px;
@@ -702,12 +997,6 @@ export default {
   border-radius: 15px;
   overflow: hidden;
   flex-shrink: 0;
-}
-
-.song-details-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .placeholder-detail-image {
@@ -754,7 +1043,7 @@ export default {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Song Details Content - similar to recommend section */
+/* Song Details Content */
 .song-details-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -831,7 +1120,16 @@ export default {
     gap: 20px;
   }
   
-  /* Modal responsive - similar to recommend section */
+  .results-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+  }
+  
+  .sort-controls {
+    justify-content: center;
+  }
+  
   .song-details-header {
     flex-direction: column;
     gap: 20px;
@@ -907,6 +1205,16 @@ export default {
   .lyrics-text {
     padding: 15px;
     font-size: 0.9rem;
+  }
+}
+
+/* Search suggestions responsive */
+@media (max-width: 480px) {
+  .search-suggestions {
+    margin: 5px -20px 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 }
 </style>
