@@ -57,6 +57,8 @@ export default {
 
         // Handle callback
         await authStore.handleCallback(code)
+        // ลบ code ออกจาก URL ทันทีหลังแลก token
+        window.history.replaceState({}, document.title, window.location.pathname)
         success.value = true
         isLoading.value = false
 

@@ -178,7 +178,6 @@ export default {
       
       // Check if we're returning from Spotify callback
       const urlParams = new URLSearchParams(window.location.search)
-      const code = urlParams.get('code')
       const error = urlParams.get('error')
       
       if (error) {
@@ -188,16 +187,7 @@ export default {
         return
       }
       
-      if (code) {
-        try {
-          await authStore.handleCallback(code)
-          // Clear URL parameters after successful callback
-          window.history.replaceState({}, document.title, window.location.pathname)
-        } catch (error) {
-          console.error('Failed to handle callback:', error)
-          window.history.replaceState({}, document.title, window.location.pathname)
-        }
-      } else if (authStore.accessToken) {
+      if (authStore.accessToken) {
         // Ensure token is valid and refresh if needed
         await authStore.ensureValidToken()
       }
