@@ -80,11 +80,9 @@
           
           <!-- Sort Options -->
           <div class="sort-controls">
-            <label class="sort-label">Sort by:</label>
-            <select v-model="currentSort" @change="handleSortChange" class="sort-select">
+            <label class="sort-label">Sort by:</label>            <select v-model="currentSort" @change="handleSortChange" class="sort-select">
               <option value="relevance">Relevance</option>
-              <option value="name">Song Name</option>
-              <option value="artist">Artist</option>
+              <option value="name">A-Z</option>
               <option value="year">Year</option>
             </select>
             <button @click="toggleSortDirection" class="sort-direction-btn">
@@ -116,9 +114,8 @@
             </div>
             <div class="card-content">
               <h3 class="card-title">{{ item.name }}</h3>
-              <p class="card-artist">{{ item.artists }}</p>
-              <div class="card-tags">
-                <span class="tag">{{ item.genres }}</span>
+              <p class="card-artist">{{ item.artists }}</p>              <div class="card-tags">
+                <span :class="['tag', { 'no-genre': item.genres === 'No Genre' }]">{{ item.genres }}</span>
                 <span class="tag">{{ item.year }}</span>
               </div>
             </div>
@@ -181,9 +178,8 @@
           </div>
           <div class="song-details-info">
             <h2 class="detail-song-name">{{ searchStore.selectedItem.name }}</h2>
-            <p class="detail-artist-name">{{ searchStore.selectedItem.artists }}</p>
-            <div class="song-meta">
-              <span class="meta-item">{{ searchStore.selectedItem.genres }}</span>
+            <p class="detail-artist-name">{{ searchStore.selectedItem.artists }}</p>            <div class="song-meta">
+              <span :class="['meta-item', { 'no-genre': searchStore.selectedItem.genres === 'No Genre' }]">{{ searchStore.selectedItem.genres }}</span>
               <span class="meta-item">{{ searchStore.selectedItem.year }}</span>
               <span class="meta-item">Score: {{ searchStore.selectedItem.score?.toFixed(2) }}</span>
             </div>
@@ -253,11 +249,11 @@ export default {
   setup() {
     const searchStore = useSearchStore();
     const showSuggestions = ref(false);
-    const currentSort = ref('relevance');
-
-    // Initialize store
-    onMounted(() => {
+    const currentSort = ref('relevance');    // Initialize store
+    onMounted(async () => {
       searchStore.initialize();
+      // Load initial songs when component mounts
+      await searchStore.loadInitialSongs(20);
     });
 
     // Watch for search query changes to hide suggestions
@@ -859,6 +855,21 @@ export default {
   padding: 4px 10px;
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* No Genre Styling */
+.tag.no-genre,
+.meta-item.no-genre {
+  background: rgba(255, 107, 107, 0.2);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: rgba(255, 107, 107, 0.9);
+  font-style: italic;
+}
+
+.tag.no-genre::before,
+.meta-item.no-genre::before {
+  content: "❌ ";
+  font-size: 0.8em;
 }
 
 /* Empty State */

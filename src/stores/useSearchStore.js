@@ -29,10 +29,9 @@ export const useSearchStore = defineStore('search', {
       { key: 'artists', label: 'Artist', icon: '👤' },
       { key: 'genres', label: 'Genre', icon: '🎭' }
     ],
-    
-    // UI state
+      // UI state
     showMobileFilters: false,
-    sortBy: 'relevance', // 'relevance', 'name', 'year', 'artist'
+    sortBy: 'relevance', // 'relevance', 'name', 'year'
     sortDirection: 'desc' // 'asc', 'desc'
   }),
 
@@ -52,14 +51,7 @@ export const useSearchStore = defineStore('search', {
           sorted.sort((a, b) => {
             const comparison = (a.year || 0) - (b.year || 0);
             return state.sortDirection === 'asc' ? comparison : -comparison;
-          });
-          break;
-        case 'artist':
-          sorted.sort((a, b) => {
-            const comparison = a.artists.localeCompare(b.artists);
-            return state.sortDirection === 'asc' ? comparison : -comparison;
-          });
-          break;
+          });          break;
         case 'relevance':
         default:
           sorted.sort((a, b) => {
@@ -292,9 +284,7 @@ export const useSearchStore = defineStore('search', {
           this.performSearch(query, field);
         }, delay);
       };
-    })(),
-
-    // Reset search state
+    })(),    // Reset search state
     resetSearch() {
       this.query = '';
       this.field = 'name';
@@ -302,6 +292,30 @@ export const useSearchStore = defineStore('search', {
       this.clearError();
       this.clearSelectedItem();
       this.currentPage = 1;
+    },
+
+    // Load initial songs when page loads
+    async loadInitialSongs(size = 20) {
+      this.setLoading(true);
+      this.clearError();
+
+      try {
+        const response = await searchService.getAllSongs(size);
+        
+        this.results = response.results;
+        this.totalResults = response.totalResults;
+        this.hasSearched = true;
+        this.query = '';
+        this.field = 'name';
+
+      } catch (error) {
+        console.error('Load initial songs error:', error);
+        this.setError(error.message || 'Failed to load songs');
+        this.results = [];
+        this.totalResults = 0;
+      } finally {
+        this.setLoading(false);
+      }
     },
 
     // Initialize store

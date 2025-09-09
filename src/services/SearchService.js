@@ -62,6 +62,51 @@ class SearchService {
       } else if (error instanceof TypeError && error.message.includes('fetch')) {
         throw new Error('Network error - please check your connection');
       }
+      throw error;    }
+  }
+
+  /**
+   * Get all songs (for initial display)
+   * @param {number} size - Number of results to return
+   * @returns {Promise} API response
+   */
+  async getAllSongs(size = 20) {
+    const params = new URLSearchParams({
+      size: size.toString()
+    });
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.defaultTimeout);
+
+      const response = await fetch(`${this.baseURL}/songs?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.hits || !Array.isArray(data.hits)) {
+        throw new Error('Invalid response format from server');
+      }
+
+      return this.transformSearchResponse(data);
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out');
+      } else if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error - please check your connection');
+      }
       throw error;
     }
   }
@@ -88,29 +133,42 @@ class SearchService {
       }))
     };
   }
-
   /**
    * Format genres from API response
    * @param {string|Array} genres - Genres data
    * @returns {string} Formatted genres string
    */
   formatGenres(genres) {
-    if (!genres) return 'Unknown';
+    if (!genres) return 'No Genre';
     
     // Handle genres that come as string representation of array
     if (typeof genres === 'string') {
+      // Handle empty array case: "[]"
+      if (genres.trim() === '[]' || genres.trim() === '') {
+        return 'No Genre';
+      }
+      
       // Remove brackets and quotes, then split
       const cleaned = genres.replace(/[[\]']/g, '');
       const genreArray = cleaned.split(',').map(g => g.trim()).filter(g => g);
+      
+      // If after filtering, no genres left
+      if (genreArray.length === 0) {
+        return 'No Genre';
+      }
+      
       return genreArray.slice(0, 3).join(', '); // Show max 3 genres
     }
     
     // Handle if it's already an array
     if (Array.isArray(genres)) {
+      if (genres.length === 0) {
+        return 'No Genre';
+      }
       return genres.slice(0, 3).join(', ');
     }
     
-    return genres;
+    return genres || 'No Genre';
   }
 
   /**
