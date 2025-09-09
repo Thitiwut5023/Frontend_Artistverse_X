@@ -24,7 +24,8 @@
         </div>        <div class="progress-description">
           <span v-if="useExactNotes" class="exact-mode">
             Using your {{ notes.length }} notes exactly ({{ actualBars.toFixed(1) }} bars total)
-          </span>          <span v-else-if="progressPercentage < 100" class="incomplete">
+          </span>          
+          <span v-else-if="progressPercentage < 100" class="incomplete">
             {{ totalNotesNeeded - notes.length }} more notes needed for {{ settings.numberOfBars }} bars target
           </span>
           <span v-else-if="progressPercentage === 100" class="complete">
@@ -112,19 +113,22 @@
     
     <!-- Settings Section -->
     <div class="settings-section">
-      <div class="settings-grid">
-          <!-- Number of Bars Input -->
+      <div class="settings-grid">        
+        <!-- Number of Bars Input -->
         <div class="setting-group">
-          <label for="numberOfBars" class="setting-label">Target Bars (Optional)</label>
-          <div class="input-wrapper">
+          <label for="numberOfBars" 
+          class="setting-label">Target Bars (Optional)
+        </label>
+          <div class="input-wrapper">            
             <input 
               id="numberOfBars"
-              v-model.number="settings.numberOfBars"
-              type="number" 
-              min="1" 
-              max="32"
+              v-model="settings.numberOfBars"
+              type="text" 
               class="setting-input number-input"
-              @input="emitSettingsChange"
+              @input="handleNumberOfBarsInput"
+              @blur="validateNumberOfBars"
+              @keydown="preventArrowKeys"
+              @wheel="preventDefault"
               placeholder="4"
             />
             <span class="input-unit">bars</span>
@@ -135,15 +139,15 @@
         <!-- Tempo Input -->
         <div class="setting-group">
           <label for="tempo" class="setting-label">Tempo (BPM)</label>
-          <div class="input-wrapper">
-            <input 
+          <div class="input-wrapper">            <input 
               id="tempo"
-              v-model.number="settings.tempo"
-              type="number" 
-              min="40" 
-              max="240"
+              v-model="settings.tempo"
+              type="text" 
               class="setting-input number-input"
-              @input="emitSettingsChange"
+              @input="handleTempoInput"
+              @blur="validateTempo"
+              @keydown="preventArrowKeys"
+              @wheel="preventDefault"
               placeholder="120"
             />
             <span class="input-unit">BPM</span>
@@ -325,13 +329,96 @@ export default {
       }));
       
       this.$emit('notes-changed', noteObjects);
+    },    emitSettingsChange() {
+      this.$emit('settings-changed', this.settings);
     },
     
-    emitSettingsChange() {
-      this.settings.numberOfBars = Math.max(1, Math.min(32, this.settings.numberOfBars));
-      this.settings.tempo = Math.max(40, Math.min(240, this.settings.tempo));
+    handleNumberOfBarsInput(event) {
+      const value = event.target.value;
+      // Allow any input during typing, only filter non-numeric characters
+      const numericValue = value.replace(/[^0-9]/g, '');
+      if (numericValue !== value) {
+        event.target.value = numericValue;
+        this.settings.numberOfBars = numericValue;
+      } else {
+        this.settings.numberOfBars = value;
+      }
+    },
+    
+    validateNumberOfBars(event) {
+      const value = event.target.value;
+      // Allow empty string for clearing the field
+      if (value === '') {
+        this.settings.numberOfBars = '';
+        this.emitSettingsChange();
+        return;
+      }
       
-      this.$emit('settings-changed', this.settings);
+      // Validate and clamp the final value
+      const numValue = parseInt(value, 10);
+      if (!isNaN(numValue)) {
+        // Clamp between 1 and 32
+        const clampedValue = Math.max(1, Math.min(32, numValue));
+        this.settings.numberOfBars = clampedValue;
+        // Update the input field to show the clamped value
+        event.target.value = clampedValue;
+        this.emitSettingsChange();
+      } else {
+        // If invalid input, set to default
+        this.settings.numberOfBars = 4;
+        event.target.value = 4;
+        this.emitSettingsChange();
+      }
+    },
+    
+    handleTempoInput(event) {
+      const value = event.target.value;
+      // Allow any input during typing, only filter non-numeric characters
+      const numericValue = value.replace(/[^0-9]/g, '');
+      if (numericValue !== value) {
+        event.target.value = numericValue;
+        this.settings.tempo = numericValue;
+      } else {
+        this.settings.tempo = value;
+      }
+    },
+    
+    validateTempo(event) {
+      const value = event.target.value;
+      // Allow empty string for clearing the field
+      if (value === '') {
+        this.settings.tempo = '';
+        this.emitSettingsChange();
+        return;
+      }
+      
+      // Validate and clamp the final value
+      const numValue = parseInt(value, 10);
+      if (!isNaN(numValue)) {
+        // Clamp between 40 and 240
+        const clampedValue = Math.max(40, Math.min(240, numValue));
+        this.settings.tempo = clampedValue;
+        // Update the input field to show the clamped value
+        event.target.value = clampedValue;
+        this.emitSettingsChange();
+      } else {
+        // If invalid input, set to default
+        this.settings.tempo = 120;
+        event.target.value = 120;
+        this.emitSettingsChange();
+      }
+    },
+    
+    preventArrowKeys(event) {
+      // Prevent arrow up/down from changing values
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+      }
+    },
+    
+    preventDefault(event) {
+      // Prevent mouse wheel from changing values
+      event.preventDefault();
     },
     
     scrollToLatestNote() {
