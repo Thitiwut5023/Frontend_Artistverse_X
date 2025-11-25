@@ -97,50 +97,58 @@
                 </a>
               </div>
             </div>
-          </div>
-            <div class="song-details-content">
-            <!-- Song Content Section with ChatGPT Integration -->
-            <div class="content-section">
-              <h3>Song Content</h3>
-              <div class="content-info">
-                <div v-if="selectedSong.generatedContent" class="detail-item generated-content">
-                  <div class="content-text">{{ selectedSong.generatedContent }}</div>
-                </div>
-                <div v-else class="detail-item no-content">
-                  <button 
-                    @click="generateSongContent" 
-                    :disabled="isGeneratingContent"
-                    class="generate-content-btn"
-                  >
-                    <div v-if="isGeneratingContent" class="loading-dots">
-                      <span></span><span></span><span></span>
+          </div>            <div class="song-details-content">
+            <!-- Top Row: Song Content (Left) and Music Style (Right) -->
+            <div class="content-row">
+              <!-- Left Column: Song Content Section -->
+              <div class="content-left">
+                <div class="content-section">
+                  <h3>Song Content</h3>              
+                  <div class="content-info">
+                    <div v-if="selectedSong.generatedContent" class="detail-item generated-content">
+                      <div class="content-text">{{ selectedSong.generatedContent }}</div>
                     </div>
-                    <span v-else>Generate Song Analysis</span>
-                  </button>
+                    <div v-else class="detail-item no-content">
+                      <button 
+                        @click="generateSongContent" 
+                        :disabled="isGeneratingContent"
+                        class="generate-content-btn"
+                      >
+                        <div v-if="isGeneratingContent" class="loading-dots">
+                          <span></span><span></span><span></span>
+                        </div>
+                        <span v-else>Generate Song Analysis</span>
+                      </button>
+                    </div>
+                      <!-- Mood and Keywords Row -->
+                    <div class="mood-keywords-row">
+                      <div v-if="selectedSong.mood" class="detail-item mood-item">
+                        <span class="label">Mood:</span>
+                        <span class="value">{{ selectedSong.mood }}</span>
+                      </div>
+                      <div v-if="selectedSong.keywords && selectedSong.keywords.length" class="detail-item keywords-item">
+                        <span class="label">Keywords:</span>
+                        <div class="keywords-list">
+                          <span v-for="keyword in selectedSong.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
+                        </div>                
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                
-                <div v-if="selectedSong.mood" class="detail-item">
-                  <span class="label">Mood:</span>
-                  <span class="value">{{ selectedSong.mood }}</span>
-                </div>
-                <div v-if="selectedSong.keywords && selectedSong.keywords.length" class="detail-item keywords-item">
-                  <span class="label">Keywords:</span>
-                  <div class="keywords-list">
-                    <span v-for="keyword in selectedSong.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
-                  </div>                
+              </div>
+              
+              <!-- Right Column: Music Style Section -->
+              <div class="content-right">
+                <div v-if="selectedSong.music_style" class="music-style-section">
+                  <h3>Music Style</h3>
+                  <div class="style-description">
+                    {{ selectedSong.music_style }}
+                  </div>
                 </div>
               </div>
             </div>
             
-            <!-- Music Style Section -->
-            <div v-if="selectedSong.music_style" class="music-style-section">
-              <h3>Music Style</h3>
-              <div class="style-description">
-                {{ selectedSong.music_style }}
-              </div>
-            </div>
-            
-            <!-- Musical Details Section -->
+            <!-- Bottom Row: Musical Details Section (Full Width) -->
             <div class="musical-details-section">
               <h3>Musical Details</h3>
               <div class="details-grid">
@@ -149,7 +157,7 @@
                   <span class="value">{{ selectedSong.genre }}</span>
                 </div>                <div v-if="selectedSong.beat" class="detail-item">
                   <span class="label">Beat:</span>
-                  <span class="value">{{ selectedSong.beat }} BPM</span>
+                  <span class="value">{{ selectedSong.beat }}</span>
                 </div>
                 <div v-if="selectedSong.key" class="detail-item">
                   <span class="label">Key:</span>
@@ -162,8 +170,7 @@
                 <div v-if="selectedSong.duration" class="detail-item">
                   <span class="label">Duration:</span>
                   <span class="value">{{ selectedSong.duration }}</span>
-                </div>
-                <div v-if="selectedSong.instruments" class="detail-item">
+                </div>                <div v-if="selectedSong.instruments" class="detail-item instruments-item">
                   <span class="label">Instruments:</span>
                   <span class="value">{{ selectedSong.instruments }}</span>
                 </div>
@@ -777,8 +784,8 @@ export default {
 }
 
 .song-image {
-  width: 120px;
-  height: 120px;
+  width: 160px;
+  height: 160px;
   margin: 0 auto 25px;
   border-radius: 15px;
   overflow: hidden;
@@ -889,8 +896,8 @@ export default {
 }
 
 .song-details-image {
-  width: 120px;
-  height: 120px;
+  width: 220px;
+  height: 220px;
   border-radius: 15px;
   overflow: hidden;
   flex-shrink: 0;
@@ -979,9 +986,66 @@ export default {
 }
 
 .song-details-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+
+/* New Horizontal Layout */
+.content-row {
+  display: grid !important;
+  grid-template-columns: 60% 40% !important;
+  gap: 25px;
+  margin-bottom: 0px;
+  align-items: stretch !important;
+  min-height: 300px;
+}
+
+.content-left {
+  display: flex !important;
+  flex-direction: column;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 15px;
+  padding: 16px;
+}
+
+.content-right {
+  display: flex !important;
+  flex-direction: column;
+  height: 100%;
+  background: rgba(29, 185, 84, 0.05);
+  border-radius: 15px;
+  padding: 20px;
+}
+
+/* Adjust content section for left column */
+.content-left .content-section {
+  margin-bottom: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-left .content-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Adjust music style section for right column */
+.content-right .music-style-section {
+  margin-bottom: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-right .style-description {
+  flex-grow: 1;
+  display: flex;
+  align-items: flex-start;
 }
 
 .lyrics-section h3,
@@ -1011,26 +1075,43 @@ export default {
 
 .details-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
   margin-top: 20px;
 }
 
 .detail-item {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.detail-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
 .detail-item .label {
-  font-weight: bold;
+  font-weight: 600;
   color: #ffffff;
   font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 120px;
 }
 
 .detail-item .value {
-  color: #cccccc;
+  color: #1db954;
   font-size: 0.95rem;
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
 }
 
 /* Enhanced Song Details Styles */
@@ -1038,37 +1119,146 @@ export default {
   margin-bottom: 30px;
 }
 
-.content-section h3, .musical-details-section h3 {
+.content-section h3 {
+  font-size: 1.5rem;
+  color: #ffffff;
+  margin-bottom: 20px;
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.musical-details-section h3 {
   font-size: 1.3rem;
   color: #ffffff;
   margin-bottom: 20px;
   font-weight: bold;
 }
 
-.content-info .detail-item {
-  margin-bottom: 15px;
+.content-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
-.keywords-item {
-  flex-direction: column;
-  align-items: flex-start !important;
-  gap: 8px !important;
+.content-info .detail-item {
+  margin-bottom: 0;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+.content-info .mood-keywords-row {
+  display: grid;
+  grid-template-columns: 35% 65%;
+  gap: 5px;
+  align-items: stretch;
+}
+
+.content-info .detail-item.generated-content,
+.content-info .detail-item.no-content {
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.content-info .detail-item:not(.generated-content):not(.no-content) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+}
+
+.content-info .detail-item.keywords-item {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 15px !important;
+  min-height: 60px !important;
+}
+
+.content-info .detail-item.mood-item {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 15px !important;
+  min-height: 60px !important;
+}
+
+.content-info .detail-item.keywords-item .label {
+  min-width: 80px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.content-info .detail-item.mood-item .label {
+  min-width: 80px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.content-info .detail-item.mood-item .value {
+  color: #1db954;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  flex: 1;
+}
+
+.content-info .detail-item.keywords-item .keywords-list {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.content-info .detail-item .label {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 80px;
+}
+
+.content-info .detail-item .value {
+  color: #1db954;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
+}
+
+
 
 .keywords-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  align-items: center;
 }
 
 .keyword-tag {
-  background: linear-gradient(135deg, rgba(29, 185, 84, 0.2), rgba(29, 185, 84, 0.1));
+  background: linear-gradient(135deg, rgba(29, 185, 84, 0.15), rgba(29, 185, 84, 0.08));
   color: #1db954;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  border: 1px solid rgba(29, 185, 84, 0.3);
-  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  border: 1px solid rgba(29, 185, 84, 0.25);
+  font-weight: 600;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(29, 185, 84, 0.1);
+}
+
+.keyword-tag:hover {
+  background: linear-gradient(135deg, rgba(29, 185, 84, 0.25), rgba(29, 185, 84, 0.15));
+  border-color: rgba(29, 185, 84, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.2);
 }
 
 /* ChatGPT Content Generation Styles */
@@ -1153,39 +1343,207 @@ export default {
 
 /* Music Style Section */
 .music-style-section {
-  margin-bottom: 30px;
-  padding: 20px;
-  background: linear-gradient(135deg, rgba(29, 185, 84, 0.1), rgba(29, 185, 84, 0.05));
-  border-radius: 15px;
-  border: 1px solid rgba(29, 185, 84, 0.2);
+  margin-bottom: 20px;
+  padding: 25px;
+  background: linear-gradient(135deg, rgba(29, 185, 84, 0.15), rgba(29, 185, 84, 0.08));
+  border-radius: 20px;
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.music-style-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .music-style-section h3 {
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   color: #1db954;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   font-weight: bold;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .music-style-section h3::before {
   content: "🎵";
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  filter: drop-shadow(0 0 8px rgba(29, 185, 84, 0.5));
 }
 
 .style-description {
   color: #ffffff;
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 1.05rem;
+  line-height: 1.7;
   text-align: left;
   font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  border-radius: 15px;
+  border-left: 4px solid #1db954;
 }
 
 .musical-details-section {
-  margin-top: 30px;
+  margin-top: 0px;
+  padding: 25px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.musical-details-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.musical-details-section h3 {
+  font-size: 1.5rem;
+  color: #ffffff;
+  margin-bottom: 20px;
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.musical-details-section h3::before {
+  content: "🎼";
+  font-size: 1.3rem;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Special styling for instruments item - make it wider */
+.musical-details-section .detail-item.instruments-item {
+  grid-column: span 2;
+  min-width: 100%;
+}
+
+/* Fallback for single column layout */
+@media (max-width: 768px) {
+  .musical-details-section .detail-item.instruments-item {
+    grid-column: span 1;
+  }
+}
+
+.musical-details-section .detail-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.musical-details-section .detail-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  transition: left 0.5s ease;
+}
+
+.musical-details-section .detail-item:hover::before {
+  left: 100%;
+}
+
+.musical-details-section .detail-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.musical-details-section .detail-item .label {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 120px;
+}
+
+.musical-details-section .detail-item .value {
+  color: #1db954;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: center;
+  flex: 1;
+}
+
+/* Special styling for instruments item - make it wider */
+.musical-details-section .detail-item.instruments-item {
+  grid-column: span 2;
+  min-width: 100%;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.musical-details-section .detail-item.instruments-item .value {
+  text-align: left;
+  margin-left: 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.musical-details-section .detail-item.instruments-item .label {
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+/* Fallback for single column layout */
+@media (max-width: 768px) {
+  .musical-details-section .detail-item.instruments-item {
+    grid-column: span 1;
+  }
+  
+  .details-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .music-analysis {
@@ -1269,6 +1627,32 @@ export default {
     grid-template-columns: 1fr;
     gap: 12px;
   }
+
+  .musical-details-section {
+    padding: 20px;
+  }
+
+  .musical-details-section .detail-item {
+    padding: 15px 16px;
+  }
+
+  .musical-details-section .detail-item .label {
+    min-width: 100px;
+    font-size: 0.85rem;
+  }
+
+  .musical-details-section .detail-item .value {
+    font-size: 0.9rem;
+  }
+
+  .music-style-section {
+    padding: 20px;
+  }
+
+  .style-description {
+    font-size: 1rem;
+    padding: 16px;
+  }
 }
 
 /* Responsive for song details */
@@ -1283,20 +1667,28 @@ export default {
     gap: 20px;
     text-align: center;
   }
-  
   .song-details-image {
-    width: 100px;
-    height: 100px;
+    width: 180px;
+    height: 180px;
     margin: 0 auto;
   }
   
   .detail-song-name {
     font-size: 1.5rem;
+  }  .song-details-content {
+    flex-direction: column;
+    gap: 25px;
   }
   
-  .song-details-content {
+  /* Mobile layout for content row */
+  .content-row {
     grid-template-columns: 1fr;
-    gap: 25px;
+    gap: 20px;
+  }
+  
+  .content-info .mood-keywords-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
   
   .details-grid {
@@ -1348,17 +1740,16 @@ export default {
   .songs-container {
     gap: 15px;
   }
-  
-  .song-card {
-    min-width: 180px;
-    max-width: 180px;
-    min-height: 250px;
+    .song-card {
+    min-width: 240px;
+    max-width: 240px;
+    min-height: 320px;
     padding: 20px;
   }
   
   .song-image {
-    width: 100px;
-    height: 100px;
+    width: 140px;
+    height: 140px;
     margin-bottom: 20px;
   }
 }
@@ -1367,17 +1758,16 @@ export default {
   .section-title {
     font-size: 2rem;
   }
-  
-  .song-card {
-    min-width: 160px;
-    max-width: 160px;
-    min-height: 230px;
+    .song-card {
+    min-width: 200px;
+    max-width: 200px;
+    min-height: 280px;
     padding: 18px;
   }
   
   .song-image {
-    width: 90px;
-    height: 90px;
+    width: 120px;
+    height: 120px;
   }
   
   .nav-btn {
@@ -1421,5 +1811,138 @@ export default {
   color: #1db954;
   font-size: 14px;
   font-style: italic;
+}
+
+/* New Horizontal Layout */
+.content-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 25px;
+  align-items: flex-start;
+}
+
+.content-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.content-right {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Adjust content section for left column */
+.content-left .content-section {
+  margin-bottom: 0;
+}
+
+/* Adjust music style section for right column */
+.content-right .music-style-section {
+  margin-bottom: 0;
+  height: fit-content;
+}
+
+/* Responsive layout for tablets */
+@media (max-width: 1024px) {
+  .content-row {
+    grid-template-columns: 50% 50% !important;
+    gap: 15px;
+    min-height: 250px;
+  }
+  
+  .content-left {
+    padding: 12px;
+  }
+  
+  .content-right {
+    padding: 12px;
+  }
+  
+  .content-info .mood-keywords-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+/* Responsive layout for mobile */
+@media (max-width: 768px) {
+  .content-row {
+    grid-template-columns: 1fr !important;
+    gap: 15px;
+    min-height: auto;
+  }
+  
+  .content-left {
+    padding: 15px;
+    margin-bottom: 0;
+  }
+  
+  .content-right {
+    padding: 15px;
+  }
+  
+  .content-info .mood-keywords-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .content-section h3 {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+  }
+  
+  .music-style-section h3 {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+  }
+  
+  .keyword-tag {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
+}
+
+/* Responsive layout for small mobile devices */
+@media (max-width: 480px) {
+  .content-row {
+    gap: 10px;
+  }
+  
+  .content-left,
+  .content-right {
+    padding: 12px;
+  }
+  
+  .content-section h3,
+  .music-style-section h3 {
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+  }
+  
+  .content-info .detail-item {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .content-info .mood-keywords-row {
+    gap: 8px;
+  }
+  
+  .keyword-tag {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+  }
+  
+  .generate-content-btn {
+    font-size: 0.85rem;
+    padding: 10px 20px;
+    min-width: 140px;
+  }
+  
+  .style-description {
+    font-size: 0.9rem;
+    padding: 12px;
+  }
 }
 </style>

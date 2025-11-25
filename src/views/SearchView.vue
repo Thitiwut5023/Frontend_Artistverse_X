@@ -2,7 +2,7 @@
   <div class="search-view">
     <!-- Header Section -->
     <div class="search-header">
-      <h1 class="search-title">ARTISTVERSE</h1>
+      <h1 class="search-title">ARTISTVERSE X</h1>
       
       <!-- Search Bar -->
       <div class="search-bar-container">

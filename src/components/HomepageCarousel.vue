@@ -11,9 +11,9 @@ export default {
         {
           head: 'WE ARE',
           videoSrc: null,
-          title: 'ARTISTVERSE',
+          title: 'ARTISTVERSE X',
           description:
-            'Artistverse streamlines songwriting with customizable lyrics, genre and mood selection, and chord progression recommendations. Mimic your favorite artists, get emotional song suggestions through facial recognition, and enjoy an engaging, efficient music creation experience. Embrace the future of music with Artistverse.',
+            'Artistverse X streamlines songwriting with customizable lyrics, genre and mood selection, and chord progression recommendations. Mimic your favorite artists, get emotional song suggestions through facial recognition, and enjoy an engaging, efficient music creation experience. Embrace the future of music with Artistverse X.',
           image:
             'https://png.pngtree.com/thumb_back/fw800/background/20220709/pngtree-abstract-lowpoly-data-visualization-on-dark-background-ai-contemporary-cell-photo-image_37843356.jpg'
         },
